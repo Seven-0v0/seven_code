@@ -1,0 +1,22 @@
+# 编译产物
+build/
+*.o
+*.obj
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 计划文件
+.omo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

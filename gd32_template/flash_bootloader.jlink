@@ -1,0 +1,6 @@
+r
+h
+loadbin build/bootloader/bootloader.bin 0x08000000
+r
+go
+exit

@@ -1,0 +1,6 @@
+r
+h
+loadbin build/app/app.bin 0x08008000
+r
+go
+exit
