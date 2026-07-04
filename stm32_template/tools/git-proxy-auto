@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# git 代理自动检测：Clash 开了就走代理，没开就直连
+# 安装：ln -sf /Users/seven.xu/code/stm32_template/tools/git-proxy-auto /usr/local/bin/git-proxy
+# 用法：git proxy push / git proxy pull / git proxy clone <url>
+
+PROXY_HOST="127.0.0.1"
+PROXY_PORT="${CLASH_PORT:-7897}"
+
+proxy_alive() {
+    curl -s -o /dev/null --connect-timeout 2 \
+         -x "http://${PROXY_HOST}:${PROXY_PORT}" https://github.com >/dev/null 2>&1
+}
+
+if proxy_alive; then
+    export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    export https_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    echo "[proxy] Clash @ ${PROXY_HOST}:${PROXY_PORT}" >&2
+else
+    echo "[proxy] 代理不可用，直连" >&2
+fi
+
+exec git "$@"
