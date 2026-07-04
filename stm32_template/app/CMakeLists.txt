@@ -4,7 +4,7 @@ set(TARGET_NAME app)
 
 # 源文件
 set(SOURCES
-    src/verify_f103_main.c
+    src/main.c
     startup/startup_stm32f103xb.s
 )
 
