@@ -105,6 +105,40 @@ void SysTick_Handler(void)
 
 ---
 
+### 坑 6：Clash 全局代理 ≠ 终端能用
+
+**现象：** Clash Verge 开了"全局代理"，但 `git push` 仍然超时，`curl github.com` 也连不上。
+
+**原因：** Clash 的"全局代理"有两种模式，但都对终端程序不友好：
+
+1. **系统代理模式**：修改 macOS 网络偏好设置里的 HTTP/HTTPS 代理。但 git、curl 等命令行工具默认不读取系统代理设置，直连网络。
+2. **TUN 模式**（虚拟网卡）：理论上劫持所有系统流量，但实际可能路由表没正确配置——默认路由仍指向 WiFi 网关（`192.168.x.x`），没有经过 Clash 的 utun 虚拟网卡。
+
+**诊断步骤：**
+```bash
+# 1. 找 Clash 实际监听的代理端口
+grep "mixed-port\|port:" "/Users/你的用户名/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml"
+
+# 2. 测试代理端口是否可用
+curl -x http://127.0.0.1:<端口> https://github.com
+
+# 3. 检查当前默认路由（看是否走 TUN 虚拟网卡）
+netstat -rn -f inet | head -5
+```
+
+**解决：** 找到 Clash 代理端口（本例是 7897，不是常见的 7890），显式设置 git 走代理：
+```bash
+git config --global http.proxy http://127.0.0.1:7897
+git config --global https.proxy http://127.0.0.1:7897
+```
+
+**教训：**
+1. Clash Verge 的 mixed-port 不一定在 7890——看配置文件最靠谱
+2. macOS 下终端程序不讲"系统代理"，必须显式配置 `http.proxy`
+3. TUN 模式的"全系统代理"是营销话术，实际路由可能根本没走 TUN 网卡
+
+---
+
 ## 关键经验
 
 1. **bare metal 中断管理**：cpsid i / __enable_irq / Default_Handler 是隐藏陷阱
@@ -112,3 +146,4 @@ void SysTick_Handler(void)
 3. **闭环 = 反馈驱动**：用串口数据计算修正比例，不靠猜
 4. **启动消息不可靠**：关键验证放主循环
 5. **物理接线确认 > 软件检测**
+6. **Clash 代理 ≠ 终端能用**：必须显式设 `git config http.proxy`，不自动走系统代理
