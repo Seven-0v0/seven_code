@@ -1,0 +1,9 @@
+device STM32F103C8
+si SWD
+speed 4000
+connect
+erase
+loadbin build/app/app.bin 0x08000000
+r
+g
+exit
