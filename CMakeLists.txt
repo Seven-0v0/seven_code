@@ -14,6 +14,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdata-sections -ffunction-sections -Wall -W
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
 set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -specs=nano.specs -lc -lm -Wl,--gc-sections")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ============================================
 # BSP Layer (MUST come before chip include for B1 link edge)

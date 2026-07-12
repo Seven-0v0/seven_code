@@ -67,7 +67,7 @@ fi
 echo "[INFO] Using J-Link: $JLINK"
 
 # 检查 flash 脚本
-FLASH_SCRIPT="$PROJECT_DIR/flash_app.jlink"
+FLASH_SCRIPT="$PROJECT_DIR/apps/blinky_f103/flash.jlink"
 if [ ! -f "$FLASH_SCRIPT" ]; then
     echo "[ERR] Flash script not found: $FLASH_SCRIPT"
     exit 1
