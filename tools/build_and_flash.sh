@@ -28,15 +28,22 @@ for arg in "$@"; do
 done
 
 # ============================================================
-# Step 1: 编译
+# Step 1: 配置（如果需要）+ 编译
 # ============================================================
 echo "[INFO] Building firmware..."
 cd "$PROJECT_DIR"
+
+# 如果 build 目录未配置，先配置
+if [ ! -f "$BUILD_DIR/build.ninja" ]; then
+    echo "[INFO] Configuring CMake..."
+    cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake
+fi
+
 cmake --build "$BUILD_DIR"
 echo "[OK] Build succeeded"
 
 # 确认产物
-BIN_FILE="$BUILD_DIR/app/app.bin"
+BIN_FILE="$BUILD_DIR/apps/blinky_f103/blinky_f103.bin"
 if [ ! -f "$BIN_FILE" ]; then
     echo "[ERR] Binary not found: $BIN_FILE"
     exit 1

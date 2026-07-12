@@ -3,7 +3,7 @@ si SWD
 speed 4000
 connect
 erase
-loadbin build/app/app.bin 0x08000000
+loadbin build/apps/blinky_f103/blinky_f103.bin 0x08000000
 r
 g
 exit
