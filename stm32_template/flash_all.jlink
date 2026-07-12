@@ -1,7 +1,0 @@
-r
-h
-loadbin build/bootloader/bootloader.bin 0x08000000
-loadbin build/app/app.bin 0x08008000
-r
-go
-exit

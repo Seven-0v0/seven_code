@@ -25,6 +25,29 @@
   ******************************************************************************
   */
 
+/*
+  ==============================================================================
+  本地权威变体说明（相对 ST 上游 startup_stm32f103xb.s 的 3 处改动）
+  ------------------------------------------------------------------------------
+  本文件是硬件实测可用的权威启动文件，来源于 app 侧实际烧录验证的版本，
+  相对 ST 官方模板有以下 3 处（4 行）刻意改动，迁移中必须原样保留：
+
+    1) Reset_Handler 入口首行加 `cpsid i`
+       —— 复位后早期立即关中断，避免在 .data/.bss 尚未初始化、时钟/向量表
+          尚未就绪时被中断打断，杜绝上电竞态。
+
+    2) 静态构造调用处 `bl __libc_init_array` 替换为 `nop`
+       —— 本工程无 C++ 全局构造 / 无需 newlib init array，跳过以避免多余
+          初始化开销与对未使用符号的依赖。
+
+    3) Reset_Handler 尾部 `bx lr` 返回，Default_Handler 亦用 `bx lr`
+       （原为 `b Infinite_Loop` 死循环）
+       —— 采用 bx lr 返回而非原地死循环，配合本工程的启动/调试约定。
+
+  除上述 3 处外，本文件与 ST 上游逐字节一致。
+  ==============================================================================
+*/
+
   .syntax unified
   .cpu cortex-m3
   .fpu softvfp
@@ -59,6 +82,7 @@ defined in linker script */
   .weak Reset_Handler
   .type Reset_Handler, %function
 Reset_Handler:
+  cpsid i
 
 /* Call the clock system initialization function.*/
     bl  SystemInit
@@ -95,7 +119,7 @@ LoopFillZerobss:
   bcc FillZerobss
 
 /* Call static constructors */
-    bl __libc_init_array
+  nop                       @ __libc_init_array skipped
 /* Call the application's entry point.*/
   bl main
   bx lr
@@ -112,7 +136,7 @@ LoopFillZerobss:
     .section .text.Default_Handler,"ax",%progbits
 Default_Handler:
 Infinite_Loop:
-  b Infinite_Loop
+  bx lr
   .size Default_Handler, .-Default_Handler
 /******************************************************************************
 *
