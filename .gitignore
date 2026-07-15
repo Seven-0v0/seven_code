@@ -15,6 +15,9 @@ Thumbs.db
 # 计划文件
 .omo/
 
+# 相机采集帧缓存会快速膨胀仓库；只忽略证据帧目录，保留测试基线 fixtures
+.omo/evidence/frames/
+
 # IDE
 .vscode/
 .idea/
