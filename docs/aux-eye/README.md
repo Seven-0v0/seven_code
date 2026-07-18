@@ -1,6 +1,6 @@
 # 辅眼（aux-eye）使用指南
 
-> 面向使用者的中文说明文档。技术规格见 `docs/aux-eye-perception.md`；观测 JSON 的字段定义见 `docs/aux-eye-perception.schema.json`。
+> 面向使用者的中文说明文档。技术规格见 [`perception.md`](perception.md)；观测 JSON 的字段定义见 `schemas/aux-eye/perception.schema.json`。
 
 ## 1. 这是什么，为什么需要它
 
@@ -29,12 +29,14 @@
 
 ## 3. 当前边界（现在做不到的事）
 
-辅眼是"抓一帧、看一帧"的感知层，不是持续监控系统。具体来说：
+辅眼既支持单次抓帧，也支持由 agent 驱动的周期性采样巡检。它仍不是持续视频系统。具体来说：
 
 - **不是实时视频流**。每次调用都是离散地抓 1 帧或若干帧，帧与帧之间没有视频编解码，也没有持续的画面流。
-- **没有跨帧时序分析层**。多帧抓取（`--frames N`）只是把 N 张独立的帧存下来，辅眼本身不会把它们拼成一条"变化时间线"去分析趋势（比如"这几帧里晃动越来越大"）。这类分析目前需要人或 AI 自己看多张图对比，工具不代劳。
-- **不是准实时的边抓边分析循环**。没有"每隔 X 秒自动抓一帧并自动出结论"的常驻进程；每次抓取和每次分析都是显式调用。
-- **没有接入任何整定/控制闭环**。辅眼只产出观测 JSON，不会拿这份观测去反过来调整任何设备参数（比如 PID 参数）。把观测接入决策闭环是尚未开始的后续工作。
+- **跨帧时序分析已经用于周期性采样巡检**。每个周期会生成结构化 temporal observation，并用经过校验的历史窗口确认持续事件和趋势。普通的 `camera_capture.py --frames N` 仍只负责保存独立帧，不会单独启动这套流程。
+- **不是常驻视频进程**。巡检由 agent 按协议逐周期执行，每轮显式完成构建、串口取证、抓帧、分析和决策，不提供连续画面流。
+- **PID 整定闭环尚未实现**。辅眼只报告、分类或否决观测结果，不提供 PID 参数值或增量，也不会自行修改固件参数。把观测接入 PID tuning-loop 不在当前实现范围内。
+- **有界检测只适用于持续事件**。默认 `cycle_deadline_s=180`，持续事件需要 `required_confirmations=2` 次确认，成功还需要 `stability_windows=2` 个稳定窗口，因此默认上界是 `180 × (2 + 2) = 720` 秒。短于采样间隔的瞬时事件可能落在两个窗口之间，没有检测保证。
+- **串口与画面只做 envelope 级对齐**。串口采集会在烧录前启动并跨复位保持运行，以缓解烧录和复位后最初约 2 秒的盲区。串口日志没有逐行时间戳，所以这里不声称亚秒级对齐。
 - **ArUco 姿态是可选增强，不是默认路径**。默认路径完全靠 AI 读图；只有画面里恰好有 ArUco 标记、且 OpenCV 的 ArUco 检测器能识别出这个标记时，才会额外产出一份定量姿态数据。标记太小、太模糊或角度太斜可能导致检测不到，此时返回 `detected: false`，不会影响默认的 AI 读图路径。
 - **图像内容字段是"能填就填，填不了就留空"**，不是保证一定有值。`scene.subject`、`objects`、顶层 `confidence` 都是可选字段：在没有视觉能力的会话里它们会自然是空字符串/空数组，而不是被硬编出来；只有 `source_frame_sha256`、`visible`、`failure_reason` 这三个和"帧交接"相关的字段是必填的。
 
@@ -114,7 +116,7 @@ stdout 会输出 NDJSON，每帧一行，形如：
 
 ### 第三步：交给 AI 分析
 
-把 `path` 指向的帧文件交给 AI（用 `look_at` 或等价的多模态读图能力），让它产出一份符合 `docs/aux-eye-perception.schema.json` 的观测 JSON。`source_frame_sha256` 字段必须填第二步 NDJSON 里那个 `sha256` 的值，这样才能证明这份观测确实对应刚抓的那一帧，不是张冠李戴。
+把 `path` 指向的帧文件交给 AI（用 `look_at` 或等价的多模态读图能力），让它产出一份符合 `schemas/aux-eye/perception.schema.json` 的观测 JSON。`source_frame_sha256` 字段必须填第二步 NDJSON 里那个 `sha256` 的值，这样才能证明这份观测确实对应刚抓的那一帧，不是张冠李戴。
 
 一份合法观测的样子：
 
@@ -135,7 +137,7 @@ stdout 会输出 NDJSON，每帧一行，形如：
 ### 第四步：校验观测
 
 ```bash
-python3 tools/verify_aux_eye.py --frame .omo/evidence/frames/20260716-002852/0-20260716-002853-551493.jpg --observation observation.json
+python3 tools/aux-eye/verify_aux_eye.py --frame .omo/evidence/frames/20260716-002852/0-20260716-002853-551493.jpg --observation observation.json
 ```
 
 观测 JSON 也可以用 `-` 从 stdin 读入。校验器会做三件事：schema 校验（字段类型、必填项、enum 取值都合法）、帧身份比对（重新计算帧文件的 sha256，跟观测里的 `source_frame_sha256` 比对）、字段逻辑一致性（`visible=true` 时 `failure_reason` 必须是 `none`，`visible=false` 时必须给出真实原因）。全部通过退出码 0，任何一项不过退出码 1 并打印具体失败原因；校验器不检查描述文字写得准不准，只判定结构和交接是否正确。
@@ -150,23 +152,78 @@ python3 tools/aruco_pose.py --frame <帧路径>
 
 输出形如 `{"marker_id": 23, "yaw_deg": 44.96, "detected": true}`，给出相对相机平面法线的偏航角。具体行为分三种情况：没有检测到任何标记时，输出 `detected: false`，`marker_id` 和 `yaw_deg` 都是 `null`；检测到了标记但姿态解算失败时（比如角点几何退化），`marker_id` 会保留检测到的值，`yaw_deg` 为 `null`，`detected` 仍为 `true`；两种情况都不会报错崩溃，也都不会影响默认的 AI 读图路径——这纯粹是个可选的加分项。
 
+### 周期性采样巡检
+
+需要连续比较多个采样窗口时，使用项目内的 `aux-eye-monitor` skill。完整的相位、校验门和恢复规则见[周期性采样巡检正式协议](live-loop.md)。
+
+先写一个最小的通用目标文件，例如 `goals/inspection.json`：
+
+```json
+{
+  "goal_description": "确认目标条件在连续采样窗口中保持成立",
+  "decision": {
+    "kind": "agent_judgment"
+  }
+}
+```
+
+目标只描述本次运行要判定的条件，不写死设备构型。启动命令可直接通过 OpenCode 的 skill 入口发现和调用：
+
+```text
+skill(name="aux-eye-monitor", user_message="start --goal goals/inspection.json --camera-name UGREEN --serial-device /dev/tty.usbmodem1101 --baud 115200 --runid inspection-001")
+```
+
+一个周期按固定顺序推进：先构建；再在烧录前启动串口采集，让它跨 flash 和复位持续取证；随后抓取画面并生成结构化 temporal observation；再经过 goal gate 与 decision gate；校验通过后才 advance 到下一周期或终态。所有运行证据都保存在 `.omo/evidence/aux-eye-monitor/<runid>/`，包括周期观测、串口捕获、目标结果和决策记录。
+
+每轮只会得到五种 action：
+
+| action | 含义 |
+| --- | --- |
+| `continue` | 当前窗口未达标，进入下一周期 |
+| `candidate_success` | 当前窗口达标，但稳定窗口还不够 |
+| `success` | 连续稳定窗口满足要求，正常结束 |
+| `safe_abort` | 操作者中止或构建等可控失败，安全结束 |
+| `needs_human` | fail-closed 条件触发，停止运行并交给人工处理 |
+
+`needs_human` 不是普通重试。串口静默、重复复位、连续不可见、相机身份漂移、串口和物理证据冲突、迭代耗尽、单周期超过 180 秒，或烧录中断，都会让流程停止，禁止继续盲目烧录或推测结果。目标省略 reset 阈值时，唯一默认值是 `max_consecutive_resets=2`，所以严格 `>` 语义下第 3 个连续 `[BOOT]` 横幅终止运行。
+
+辅眼在这条链路中只负责报告、分类、请求追加观测、停止或否决。它永远不提供 PID 参数值或参数增量。任何固件参数变更都必须通过 D3 决策门，并在 `parameter_change_basis.serial_evidence` 中给出闭合的串口证据。**PID tuning-loop 集成尚未实现。**
+
 ## 7. 目录结构
 
 ```
 tools/
-  camera_capture.py          抓帧工具（纯采集，不含任何感知/网络逻辑）
-  verify_aux_eye.py          观测校验器（schema + 帧身份 + 字段逻辑）
-  aruco_pose.py               可选 ArUco 定量姿态检测
+  camera_capture.py          抓帧工具（纯采集，不含任何感知/网络逻辑，共享工具，留在根 tools/）
+  serial_capture.py          串口采集工具（共享工具，留在根 tools/）
+  build_and_flash.sh         构建/烧录脚本（共享工具，留在根 tools/）
+  aruco_pose.py               可选 ArUco 定量姿态检测（共享工具，留在根 tools/）
   requirements-vision.txt    依赖清单（只装 contrib 版 opencv）
-docs/
-  aux-eye-perception.md              感知规格（面向执行 agent 的技术说明）
-  aux-eye-perception.schema.json     观测 JSON 的唯一字段定义来源
-  aux-eye-README.md                  本文档
+  aux-eye/                   辅眼专属逻辑工具
+    verify_aux_eye.py            观测校验器（schema + 帧身份 + 字段逻辑）
+    verify_aux_eye_temporal.py   跨帧时序 temporal observation 校验器
+    verify_aux_eye_decision.py   决策记录校验器
+    aux_eye_goal_decide.py       goal gate 判定 helper
+    aux_eye_run_state.py         权威 run-state 持久化与相位机
+    serial_anomaly_scan.py       串口异常/reset 扫描器
+    _expr_eval.py                谓词表达式求值器（内部依赖）
+docs/aux-eye/
+  README.md                  本文档
+  perception.md               感知规格（面向执行 agent 的技术说明）
+  live-loop.md                 周期性采样巡检正式协议
+schemas/aux-eye/
+  perception.schema.json      观测 JSON 的唯一字段定义来源
+  temporal.schema.json        temporal observation 的字段定义来源
+  goal.schema.json             目标文件的字段定义来源
+  decision.schema.json         决策记录的字段定义来源
 tests/
   aux-eye/                    pytest 测试套件
   fixtures/aux-eye/            测试用固定图片（明亮场景图、纯黑帧、45° ArUco 图等）
+.opencode/
+  skills/aux-eye-monitor/SKILL.md          周期性采样巡检的 skill 入口
+  extensions/video-probe/                   视频探测扩展（独立于辅眼观测链路）
 .omo/evidence/
   frames/<runid>/              每次抓帧的产物（已 gitignore，不入库）
+  aux-eye-monitor/<runid>/     周期性采样巡检的观测、串口与决策证据
   final-e2e-verification.txt   最近一次全流程端到端验证记录
 ```
 
@@ -190,8 +247,8 @@ tests/
 
 ## 10. 下一步
 
-以下是感知层完成后，还没开始做的后续工作：
+当前路线图状态：
 
-- 跨帧时序对比层：把多帧观测排成一条时间线，输出类似"晃动趋势在变大/变小"这样的变化判断，而不是只看单帧快照。
-- 准实时边抓边分析循环：目前每次都是显式调用抓帧和分析，还没有"自动定时抓、自动出结论"的常驻流程。
-- 接入真实设备的整定/控制决策闭环：把辅眼观测真正用来影响设备参数调整，目前完全没有做。
+- ① **已完成**：跨帧时序对比层已经产出结构化 temporal observation，并通过历史窗口校验持续事件和趋势。
+- ② **已完成**：agent 驱动的周期性采样巡检已经落地，正式协议见 [`docs/aux-eye/live-loop.md`](live-loop.md)。它不是视频流或常驻进程。
+- ③ **未完成**：PID 整定闭环尚未实现。当前 D3 边界只允许辅眼报告或否决，任何参数变更仍必须引用闭合的串口证据。

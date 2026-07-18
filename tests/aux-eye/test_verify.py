@@ -1,5 +1,5 @@
 """
-pytest for tools/verify_aux_eye.py —— 观测校验器 + 确定性门。
+pytest for tools/aux-eye/verify_aux_eye.py —— 观测校验器 + 确定性门。
 
 覆盖:
   1. 合法观测(source_frame_sha256 与真实帧 sha256 匹配)-> 通过,exit 0。
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_VERIFY = _REPO_ROOT / "tools" / "verify_aux_eye.py"
+_VERIFY = _REPO_ROOT / "tools" / "aux-eye" / "verify_aux_eye.py"
 
 
 def _sha256(path: Path) -> str:

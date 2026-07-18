@@ -23,13 +23,13 @@
 
 ## 2. 数据流
 
-辅眼观测走一条固定的四段流水线：`tools/camera_capture.py` 打开摄像头抓一帧（或多帧），把画面存到磁盘并把每帧的元信息（路径、sha256、序号、时间戳、宽高）以 NDJSON 形式打到 stdout；执行 agent 用 `look_at` 读取该帧文件；agent 依据这一帧产出一份结构化的观测 JSON；最后用 `tools/verify_aux_eye.py`（校验器，接收帧路径与观测 JSON）做 schema 校验与帧身份比对，确认这份观测确实对应那一帧、字段形状合法。整条链路里，画面理解发生在 agent 读帧这一步，`camera_capture.py` 本身只做纯采集，不做任何画面理解或网络调用；校验发生在链路末端，只判定结构与身份，不评判描述措辞。
+辅眼观测走一条固定的四段流水线：`tools/camera_capture.py` 打开摄像头抓一帧（或多帧），把画面存到磁盘并把每帧的元信息（路径、sha256、序号、时间戳、宽高）以 NDJSON 形式打到 stdout；执行 agent 用 `look_at` 读取该帧文件；agent 依据这一帧产出一份结构化的观测 JSON；最后用 `tools/aux-eye/verify_aux_eye.py`（校验器，接收帧路径与观测 JSON）做 schema 校验与帧身份比对，确认这份观测确实对应那一帧、字段形状合法。整条链路里，画面理解发生在 agent 读帧这一步，`camera_capture.py` 本身只做纯采集，不做任何画面理解或网络调用；校验发生在链路末端，只判定结构与身份，不评判描述措辞。
 
 ---
 
 ## 3. 观测 JSON
 
-观测 JSON 的字段定义、类型约束与合法性规则，唯一真相源是 `docs/aux-eye-perception.schema.json`（JSON Schema draft-07）。产出或校验观测 JSON 时应直接引用这份 schema 文件，不要在别处复制字段定义——本节只解释字段的语义，不重复 schema 里的类型细节。
+观测 JSON 的字段定义、类型约束与合法性规则，唯一真相源是 `schemas/aux-eye/perception.schema.json`（JSON Schema draft-07）。产出或校验观测 JSON 时应直接引用这份 schema 文件，不要在别处复制字段定义——本节只解释字段的语义，不重复 schema 里的类型细节。
 
 必填字段是三个"状态/交接"字段，它们与画面理解能力无关，始终应当能产出：
 

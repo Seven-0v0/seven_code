@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omo.local/aux-eye-decision.schema.json",
+  "title": "Aux-Eye Iteration Decision",
+  "description": "Closed audit record for one development iteration. Parameter changes are declared by firmware_parameters_changed and may cite only closed serial evidence; free-text reason is never authoritative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "iteration",
+    "goal_id",
+    "goal_predicate_result",
+    "converged",
+    "window_ok",
+    "firmware_parameters_changed",
+    "serial_basis",
+    "aux_role",
+    "action",
+    "reason"
+  ],
+  "properties": {
+    "iteration": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "goal_id": {
+      "type": "string"
+    },
+    "goal_predicate_result": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "converged": {
+      "type": "boolean"
+    },
+    "window_ok": {
+      "type": "boolean"
+    },
+    "firmware_parameters_changed": {
+      "type": "boolean"
+    },
+    "parameter_change_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serial_evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "capture_path",
+              "line_number",
+              "line_sha256"
+            ],
+            "properties": {
+              "capture_path": {
+                "type": "string"
+              },
+              "line_number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "line_sha256": {
+                "type": "string",
+                "pattern": "^[A-Fa-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "serial_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anomaly_lines",
+        "predicate_result"
+      ],
+      "properties": {
+        "anomaly_lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "predicate_result": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "aux_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "status"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "orientation_change",
+              "oscillation",
+              "position_drift",
+              "part_geometry",
+              "out_of_frame",
+              "occluded"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "detected",
+              "not_detected",
+              "indeterminate"
+            ]
+          }
+        }
+      }
+    },
+    "aux_role": {
+      "type": "string",
+      "enum": [
+        "veto",
+        "classify",
+        "request_more",
+        "stop",
+        "none"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "continue",
+        "candidate_success",
+        "success",
+        "safe_abort",
+        "needs_human"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

@@ -15,17 +15,17 @@ clean CLI + exit-code + evidence-logging contract.
 
 CLI contract (fixed, no implementation freedom):
 
-    python3 tools/verify_aux_eye.py \
+    python3 tools/aux-eye/verify_aux_eye.py \
         --frame <frame path> \
         --observation <observation JSON path | -> \
-        [--schema docs/aux-eye-perception.schema.json] \
+        [--schema schemas/aux-eye/perception.schema.json] \
         [--evidence <path>]
 
 - --frame is REQUIRED: the source frame file whose sha256 the observation
   claims to describe.
 - --observation is REQUIRED: path to the observation JSON, or "-" to read it
   from stdin.
-- --schema defaults to docs/aux-eye-perception.schema.json (the single source
+- --schema defaults to schemas/aux-eye/perception.schema.json (the single source
   of truth from Todo 4). It is loaded and the observation is validated against
   it with the `jsonschema` package — this ALSO enforces the schema's own
   if/then/else invariant (visible=true <-> failure_reason="none"), so that
@@ -74,12 +74,11 @@ except ImportError:
 
 
 def _repo_root() -> Path:
-    # tools/verify_aux_eye.py -> repo root is one level up.
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parents[2]
 
 
 def _default_schema_path() -> Path:
-    return _repo_root() / "docs" / "aux-eye-perception.schema.json"
+    return _repo_root() / "schemas" / "aux-eye" / "perception.schema.json"
 
 
 def _sha256_of_file(path: Path) -> str:
@@ -147,7 +146,7 @@ def _check_field_logic(observation: dict[str, Any], failures: list[str]) -> None
             "(got 'none')"
         )
     # NOTE: len(objects)>=1 is intentionally NOT asserted — objects is optional
-    # per docs/aux-eye-perception.schema.json even when visible=true.
+    # per schemas/aux-eye/perception.schema.json even when visible=true.
     _check_confidence_ranges(observation, failures)
 
 
@@ -181,7 +180,7 @@ def main() -> int:
         "--schema",
         default=str(_default_schema_path()),
         help="Path to the observation JSON Schema "
-        "(default: docs/aux-eye-perception.schema.json).",
+        "(default: schemas/aux-eye/perception.schema.json).",
     )
     parser.add_argument(
         "--evidence",

@@ -17,6 +17,7 @@ Thumbs.db
 
 # 相机采集帧缓存会快速膨胀仓库；只忽略证据帧目录，保留测试基线 fixtures
 .omo/evidence/frames/
+.omo/evidence/aux-eye-monitor/
 
 # IDE
 .vscode/

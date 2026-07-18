@@ -1,0 +1,203 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omo.local/aux-eye-temporal.schema.json",
+  "title": "Aux-Eye Temporal Observation",
+  "description": "Single source of truth for a periodic sampled aux-eye sequence. Timestamp monotonicity and the top-level visible roll-up are enforced by the deterministic verifier. Per-frame observations and temporal events are optional so the same contract supports vision-capable and non-vision sessions. Predicates may inspect only closed event evidence fields and never note or other free text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "frames",
+    "visible"
+  ],
+  "properties": {
+    "frames": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "ts"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "ts": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_frame_sha256",
+              "visible",
+              "failure_reason"
+            ],
+            "properties": {
+              "source_frame_sha256": {
+                "type": "string",
+                "pattern": "^[A-Fa-f0-9]{64}$",
+                "description": "Cryptographic proof that the agent read exactly the frame the capture tool wrote: the SHA-256 hex digest (64 hex chars) of the source frame file. Computed by the calling agent/harness (or camera_capture.py), NOT by the vision model. verify_aux_eye.py re-computes sha256(frame) and asserts it equals this value (frame-identity gate). Independent of vision capability, therefore always required."
+              },
+              "visible": {
+                "type": "boolean",
+                "description": "Whether a usable image was actually perceived. true = the frame was read and its content is available in this observation; false = no usable content could be read (dark/occluded/empty/no-vision-capability). This is a fail-safe status signal: when in doubt the producer must emit false rather than claim true. Always producible, therefore required."
+              },
+              "failure_reason": {
+                "type": "string",
+                "enum": [
+                  "dark",
+                  "occluded",
+                  "empty",
+                  "none"
+                ],
+                "description": "Why the frame was not usable, or 'none' when it was. Invariant (also enforced by if/then/else below and by verify_aux_eye.py): visible=false pairs with failure_reason != 'none'; visible=true pairs with failure_reason == 'none'. 'dark' = too dark / underexposed; 'occluded' = lens blocked or content hidden; 'empty' = no discernible content / no vision capability; 'none' = frame usable, no failure. Always in-enum and producible, therefore required."
+              },
+              "scene": {
+                "type": "object",
+                "description": "OPTIONAL (vision-dependent). High-level description of the scene. May be absent or have an empty subject in a non-vision session.",
+                "properties": {
+                  "subject": {
+                    "type": "string",
+                    "description": "Short natural-language description of the primary subject / gist of the frame (e.g. 'a white mug on a wooden desk'). Empty string is allowed when nothing could be read."
+                  }
+                }
+              },
+              "objects": {
+                "type": "array",
+                "description": "OPTIONAL (vision-dependent). Distinct objects perceived in the frame. May be an empty array when nothing could be read.",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Short label for the object (e.g. 'mug', 'qr code', 'cable')."
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Per-object self-assessed confidence in [0,1]. NOT calibrated and NOT comparable across models — a self-report, not a probability."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "OPTIONAL (vision-dependent). Top-level self-assessed overall confidence in this observation, in [0,1]. IMPORTANT: this is self-assessed, NOT calibrated, and NOT comparable across models or runs. Treat it as a coarse signal only, never as a probability."
+              }
+            },
+            "if": {
+              "properties": {
+                "visible": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "failure_reason": {
+                  "const": "none"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "failure_reason": {
+                  "not": {
+                    "const": "none"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "temporal_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "status",
+          "start_frame",
+          "end_frame",
+          "confirmations"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "orientation_change",
+              "oscillation",
+              "position_drift",
+              "part_geometry",
+              "out_of_frame",
+              "occluded"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "detected",
+              "not_detected",
+              "indeterminate"
+            ]
+          },
+          "start_frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_frame": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "trend": {
+            "type": "string",
+            "enum": [
+              "increasing",
+              "decreasing",
+              "stable",
+              "none"
+            ]
+          },
+          "confirmations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string",
+            "description": "Human-readable context only; predicate evaluation must not inspect this field."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "visible": {
+      "type": "boolean"
+    }
+  }
+}

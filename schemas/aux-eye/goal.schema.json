@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omo.local/aux-eye-goal.schema.json",
+  "title": "Aux-Eye Run Goal",
+  "description": "Generic per-run goal and fail-safe thresholds. The contract contains no device-specific target or default.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "goal_description",
+    "decision"
+  ],
+  "properties": {
+    "goal_description": {
+      "type": "string"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "agent_judgment",
+            "predicate"
+          ]
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "stability_windows": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "serial_silence_s": {
+          "type": "number"
+        },
+        "max_consecutive_resets": {
+          "type": "integer"
+        },
+        "visibility_loss_windows": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
