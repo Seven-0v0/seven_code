@@ -1,7 +1,33 @@
 import { z } from "zod"
 
+export type ProbeUsage = {
+  readonly videoTokens?: number
+  readonly promptTokens?: number
+  readonly completionTokens?: number
+  readonly totalTokens?: number
+}
+
+export type ProbeTimings = {
+  readonly policyMs: number
+  readonly uploadMs: number
+  readonly inferenceMs: number
+  readonly totalMs: number
+}
+
+export type ProbeDiagnostics = {
+  readonly content: string
+  readonly usage: ProbeUsage
+  readonly model?: string
+}
+
 export type ProviderResponse =
-  | { readonly kind: "success"; readonly text: string }
+  | {
+      readonly kind: "success"
+      readonly text: string
+      readonly diagnostics: ProbeDiagnostics
+      readonly timings?: ProbeTimings
+      readonly debug?: string
+    }
   | { readonly kind: "http_rejection"; readonly status: number; readonly message: string }
   | { readonly kind: "payload_too_large"; readonly status?: 413; readonly message: string }
   | { readonly kind: "invalid_response"; readonly message: string }
@@ -10,6 +36,21 @@ const ProviderErrorSchema = z
   .object({
     error: z.object({ message: z.string() }).passthrough().optional(),
     message: z.string().optional(),
+  })
+  .passthrough()
+
+const VideoTokensDetailSchema = z
+  .object({ video_tokens: z.number().optional() })
+  .passthrough()
+
+const UsageSchema = z
+  .object({
+    prompt_tokens: z.number().optional(),
+    completion_tokens: z.number().optional(),
+    total_tokens: z.number().optional(),
+    video_tokens: z.number().optional(),
+    prompt_tokens_details: VideoTokensDetailSchema.optional(),
+    input_tokens_details: VideoTokensDetailSchema.optional(),
   })
   .passthrough()
 
@@ -27,6 +68,8 @@ const ProviderSuccessSchema = z
       .optional(),
     output_text: z.string().optional(),
     text: z.string().optional(),
+    model: z.string().optional(),
+    usage: UsageSchema.optional(),
   })
   .passthrough()
 
@@ -46,9 +89,9 @@ export function classifyProviderResponse(input: {
     return { kind: "http_rejection", status: input.status, message: message ?? "provider rejected the request" }
   }
 
-  const text = extractAssistantText(input.body)
-  return text
-    ? { kind: "success", text }
+  const diagnostics = extractDiagnostics(input.body)
+  return diagnostics
+    ? { kind: "success", text: diagnostics.content, diagnostics }
     : { kind: "invalid_response", message: "provider response did not contain assistant text" }
 }
 
@@ -118,20 +161,50 @@ export function sanitizeText(value: string): string {
     .slice(0, 1_000)
 }
 
-function extractAssistantText(body: unknown): string | undefined {
+function extractDiagnostics(body: unknown): ProbeDiagnostics | undefined {
   const parsed = ProviderSuccessSchema.safeParse(body)
   if (!parsed.success) return undefined
-  if (parsed.data.output_text?.trim()) return parsed.data.output_text
-  if (parsed.data.text?.trim()) return parsed.data.text
-  const first = parsed.data.choices?.[0]
+  const content = extractAssistantText(parsed.data)
+  if (!content) return undefined
+  const usage = extractUsage(parsed.data.usage)
+  return parsed.data.model?.trim()
+    ? { content, usage, model: parsed.data.model }
+    : { content, usage }
+}
+
+type ParsedSuccess = z.infer<typeof ProviderSuccessSchema>
+
+function extractAssistantText(data: ParsedSuccess): string | undefined {
+  if (data.output_text?.trim()) return data.output_text
+  if (data.text?.trim()) return data.text
+  const first = data.choices?.[0]
   if (!first) return undefined
   if (first.text?.trim()) return first.text
-  
+
   const message = first.message as { content?: string; reasoning_content?: string } | undefined
   if (message?.content?.trim()) return message.content
   if (message?.reasoning_content?.trim()) return message.reasoning_content
-  
+
   return undefined
+}
+
+function extractUsage(usage: z.infer<typeof UsageSchema> | undefined): ProbeUsage {
+  if (!usage) return {}
+  const videoTokens =
+    usage.prompt_tokens_details?.video_tokens ??
+    usage.input_tokens_details?.video_tokens ??
+    usage.video_tokens
+  const result: {
+    videoTokens?: number
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+  } = {}
+  if (videoTokens !== undefined) result.videoTokens = videoTokens
+  if (usage.prompt_tokens !== undefined) result.promptTokens = usage.prompt_tokens
+  if (usage.completion_tokens !== undefined) result.completionTokens = usage.completion_tokens
+  if (usage.total_tokens !== undefined) result.totalTokens = usage.total_tokens
+  return result
 }
 
 function extractProviderMessage(body: unknown): string | undefined {
