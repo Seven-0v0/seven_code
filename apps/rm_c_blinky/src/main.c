@@ -1,0 +1,56 @@
+#include "FreeRTOS.h"
+#include "task.h"
+
+#include "board.h"
+
+volatile uint32_t g_blink_count;
+
+void vApplicationStackOverflowHook(TaskHandle_t task, char *task_name)
+{
+    (void)task;
+    (void)task_name;
+    board_led_set(0U);
+    for (;;) {
+    }
+}
+
+void vApplicationMallocFailedHook(void)
+{
+    board_led_set(0U);
+    for (;;) {
+    }
+}
+
+static void blink_task(void *context)
+{
+    (void)context;
+
+    for (;;) {
+        board_led_toggle();
+        g_blink_count++;
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+int main(void)
+{
+    static const uint8_t boot_message[] =
+        "[BOOT] RoboMaster Development Board C safe LED/UART diagnostic\r\n";
+
+    HAL_Init();
+    board_clock_init();
+    board_led_init();
+    board_diagnostic_uart_init();
+    board_diagnostic_uart_write(boot_message, sizeof(boot_message) - 1U);
+
+    if (xTaskCreate(blink_task, "blink", configMINIMAL_STACK_SIZE, NULL, 1, NULL) != pdPASS) {
+        board_led_set(0U);
+        for (;;) {
+        }
+    }
+
+    vTaskStartScheduler();
+    board_led_set(0U);
+    for (;;) {
+    }
+}

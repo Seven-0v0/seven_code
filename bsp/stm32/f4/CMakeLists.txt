@@ -1,55 +1,49 @@
 cmake_minimum_required(VERSION 3.20)
 project(bsp_stm32_f4 C ASM)
 
-# STM32F4xx BSP 库配置
-
-# 检查标准外设库是否存在
+# STM32F4xx BSP 库。芯片目标先发布设备和时钟事实，本层只消费它们。
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    message(WARNING "STM32F4xx 标准外设库未找到，请从官网下载：https://www.st.com/")
-    return()
+    message(FATAL_ERROR "STM32F4xx HAL/CMSIS source directory is required")
 endif()
 
-# 库名称
-set(BSP_TARGET bsp_stm32_f4)
+if(NOT DEFINED STM32_F4_CHIP_TARGET OR NOT TARGET ${STM32_F4_CHIP_TARGET})
+    message(FATAL_ERROR "Configure an STM32F4 chip target before its BSP")
+endif()
 
-# 收集所有源文件
-file(GLOB BSP_SOURCES
+get_target_property(F4_DEVICE_DEFINE ${STM32_F4_CHIP_TARGET} STM32F4_DEVICE_DEFINE)
+get_target_property(F4_CPU_OPTIONS ${STM32_F4_CHIP_TARGET} STM32F4_CPU_OPTIONS)
+
+if(NOT F4_DEVICE_DEFINE OR NOT F4_CPU_OPTIONS)
+    message(FATAL_ERROR "STM32F4 chip target must define device and CPU facts")
+endif()
+if(NOT DEFINED BOARD_HSE_VALUE)
+    message(FATAL_ERROR "The selected STM32F4 board must define BOARD_HSE_VALUE")
+endif()
+
+file(GLOB BSP_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
 )
-
-# 如果有系统文件
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/system_stm32f4xx.c)
-    list(APPEND BSP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/system_stm32f4xx.c)
-endif()
-
-# 排除模板文件（不应该编译）
 list(FILTER BSP_SOURCES EXCLUDE REGEX ".*_template\\.c$")
 
-# 创建静态库
-add_library(${BSP_TARGET} STATIC ${BSP_SOURCES})
+add_library(bsp_stm32_f4 STATIC ${BSP_SOURCES})
 
-# 头文件目录
-target_include_directories(${BSP_TARGET} PUBLIC
+target_include_directories(bsp_stm32_f4 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
 )
 
-# 编译定义
-target_compile_definitions(${BSP_TARGET} PUBLIC
-    STM32F407xx
+target_compile_definitions(bsp_stm32_f4 PUBLIC
+    ${F4_DEVICE_DEFINE}
     STM32F4xx
-    USE_STDPERIPH_DRIVER
-    HSE_VALUE=8000000
+    USE_HAL_DRIVER
+    HSE_VALUE=${BOARD_HSE_VALUE}
 )
 
-# 编译选项
-target_compile_options(${BSP_TARGET} PRIVATE
-    -mcpu=cortex-m4
-    -mthumb
-    -mfpu=fpv4-sp-d16
-    -mfloat-abi=hard
+target_compile_options(bsp_stm32_f4 PRIVATE
+    ${F4_CPU_OPTIONS}
     -Wall
     -Wextra
     -Wno-unused-parameter
 )
 
-message(STATUS "STM32F4xx BSP 库已配置")
+target_link_libraries(${STM32_F4_CHIP_TARGET} INTERFACE bsp_stm32_f4)
+message(STATUS "STM32F4xx BSP configured for ${F4_DEVICE_DEFINE}, HSE=${BOARD_HSE_VALUE}Hz")

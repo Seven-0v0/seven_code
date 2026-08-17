@@ -25,7 +25,8 @@
 │   └── helpers.cmake             # CMake 辅助函数
 │
 ├── boards/                       # 板级支持（引脚映射、时钟、FreeRTOSConfig.h）
-│   └── bluepill_f103c8/          # BluePill 板子
+│   ├── bluepill_f103c8/          # BluePill 板子
+│   └── rm_dev_board_c/           # RoboMaster 官方 C 板
 │       ├── board.cmake           # 选用芯片：include cmake/chips/stm32f103c8.cmake
 │       ├── board.h               # 引脚定义（LED、串口等）
 │       └── FreeRTOSConfig.h      # 本板的 RTOS 配置
@@ -36,7 +37,8 @@
 ├── drivers/                      # 可移植设备驱动（传感器、屏幕等）
 │
 ├── apps/                         # 应用层（每个项目一个子目录）
-│   └── blinky_f103/              # 示例：LED 闪烁 + FreeRTOS 多任务
+│   ├── blinky_f103/              # 示例：LED 闪烁 + FreeRTOS 多任务
+│   └── rm_c_blinky/              # C 板安全 LED/UART 验证程序
 │       ├── CMakeLists.txt        # 选用板子：add_subdirectory(boards/bluepill_f103c8)
 │       └── src/main.c            # 业务逻辑
 │
@@ -77,6 +79,9 @@ cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc
 cmake --build build
 
 # 生成固件：build/apps/blinky_f103/blinky_f103.elf/.bin/.hex
+
+# RoboMaster C 板（STM32F407IG）安全验证固件
+bash tools/build_and_flash.sh --target rm_dev_board_c --no-flash
 ```
 
 ### 4. 烧录到硬件（BluePill STM32F103C8）
@@ -85,6 +90,9 @@ cmake --build build
 # 使用 J-Link
 cd tools/jlink
 ./flash_app.sh ../../build/apps/blinky_f103/blinky_f103.bin
+
+# C 板：构建、烧录并校验（仅 LED、内部 TIM6 时间基与 USART1 TX）
+bash tools/build_and_flash.sh --target rm_dev_board_c
 ```
 
 ## 📚 分层说明

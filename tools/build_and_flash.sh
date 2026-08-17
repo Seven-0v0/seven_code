@@ -3,8 +3,9 @@
 # STM32 一键编译 + 烧录脚本
 #
 # 用法：
-#   bash build_and_flash.sh              # 编译并烧录
-#   bash build_and_flash.sh --no-flash   # 只编译，不烧录
+#   bash build_and_flash.sh                       # 默认 f103：编译并烧录
+#   bash build_and_flash.sh --no-flash            # 默认 f103：只编译
+#   bash build_and_flash.sh --target rm_dev_board_c --no-flash
 #
 # 依赖：
 #   - cmake + ninja（构建工具）
@@ -15,35 +16,64 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/build"
-
 NO_FLASH=false
+TARGET_BOARD=f103
 
 # 参数解析
-for arg in "$@"; do
-    case "$arg" in
+while [ "$#" -gt 0 ]; do
+    case "$1" in
         --no-flash) NO_FLASH=true ;;
-        *) echo "[WARN] unknown arg: $arg" ;;
+        --target=f103) TARGET_BOARD=f103 ;;
+        --target=rm_dev_board_c) TARGET_BOARD=rm_dev_board_c ;;
+        --target)
+            if [ "$#" -lt 2 ]; then
+                echo "[ERR] --target requires f103 or rm_dev_board_c"
+                exit 2
+            fi
+            TARGET_BOARD="$2"
+            shift
+            ;;
+        *)
+            echo "[ERR] unknown arg: $1"
+            exit 2
+            ;;
     esac
+    shift
 done
+
+case "$TARGET_BOARD" in
+    f103)
+        BUILD_DIR="$PROJECT_DIR/build"
+        APP_NAME=blinky_f103
+        JLINK_DEVICE=STM32F103C8
+        ;;
+    rm_dev_board_c)
+        BUILD_DIR="$PROJECT_DIR/build-rm_dev_board_c"
+        APP_NAME=rm_c_blinky
+        JLINK_DEVICE=STM32F407IG
+        ;;
+    *)
+        echo "[ERR] Unsupported target: $TARGET_BOARD (use f103 or rm_dev_board_c)"
+        exit 2
+        ;;
+esac
 
 # ============================================================
 # Step 1: 配置（如果需要）+ 编译
 # ============================================================
-echo "[INFO] Building firmware..."
+echo "[INFO] Building firmware for $TARGET_BOARD..."
 cd "$PROJECT_DIR"
 
-# 如果 build 目录未配置，先配置
-if [ ! -f "$BUILD_DIR/build.ninja" ]; then
-    echo "[INFO] Configuring CMake..."
-    cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake
-fi
+echo "[INFO] Configuring CMake..."
+cmake -B "$BUILD_DIR" -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+    -DTARGET_BOARD="$TARGET_BOARD"
 
 cmake --build "$BUILD_DIR"
 echo "[OK] Build succeeded"
 
 # 确认产物
-BIN_FILE="$BUILD_DIR/apps/blinky_f103/blinky_f103.bin"
+BIN_FILE="$BUILD_DIR/apps/$APP_NAME/$APP_NAME.bin"
 if [ ! -f "$BIN_FILE" ]; then
     echo "[ERR] Binary not found: $BIN_FILE"
     exit 1
@@ -67,16 +97,16 @@ fi
 echo "[INFO] Using J-Link: $JLINK"
 
 # 检查 flash 脚本
-FLASH_SCRIPT="$PROJECT_DIR/apps/blinky_f103/flash.jlink"
+FLASH_SCRIPT="$PROJECT_DIR/apps/$APP_NAME/flash.jlink"
 if [ ! -f "$FLASH_SCRIPT" ]; then
     echo "[ERR] Flash script not found: $FLASH_SCRIPT"
     exit 1
 fi
 
-echo "[INFO] Flashing firmware to STM32F103C8..."
+echo "[INFO] Flashing firmware to $JLINK_DEVICE..."
 
 # 运行 J-Link 烧录
-if ! "$JLINK" -device STM32F103C8 -if SWD -speed 4000 -autoconnect 1 \
+if ! "$JLINK" -device "$JLINK_DEVICE" -if SWD -speed 4000 -autoconnect 1 \
               -CommandFile "$FLASH_SCRIPT" 2>&1; then
     echo "[ERR] J-Link flash failed"
     echo "[ERR] Check: 1) J-Link connected? 2) Board powered? 3) BOOT0=GND?"

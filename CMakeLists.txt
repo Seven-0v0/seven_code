@@ -17,28 +17,38 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -specs=nano.specs -lc -lm 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ============================================
-# BSP Layer (MUST come before chip include for B1 link edge)
+# Target selection
 # ============================================
-add_subdirectory(bsp/stm32/f1)
+set(TARGET_BOARD "f103" CACHE STRING "Firmware board target")
+set_property(CACHE TARGET_BOARD PROPERTY STRINGS f103 rm_dev_board_c)
 
-# ============================================
-# Chip Configuration
-# ============================================
-include(cmake/chips/stm32f103c8.cmake)
-
-# ============================================
-# Board Layer (MUST come before FreeRTOS for freertos_config target)
-# ============================================
-add_subdirectory(boards/bluepill_f103c8)
+if(TARGET_BOARD STREQUAL "f103")
+    # Preserve the established BluePill build as the default target.
+    add_subdirectory(bsp/stm32/f1)
+    include(cmake/chips/stm32f103c8.cmake)
+    add_subdirectory(boards/bluepill_f103c8)
+    set(SELECTED_CHIP chip_stm32f103c8)
+    set(SELECTED_APP blinky_f103)
+elseif(TARGET_BOARD STREQUAL "rm_dev_board_c")
+    # The F4 BSP is configured from facts published by the selected chip target.
+    include(boards/rm_dev_board_c/board.cmake)
+    include(cmake/chips/stm32f407ighx.cmake)
+    add_subdirectory(bsp/stm32/f4)
+    add_subdirectory(boards/rm_dev_board_c)
+    set(SELECTED_CHIP chip_stm32f407ighx)
+    set(SELECTED_APP rm_c_blinky)
+else()
+    message(FATAL_ERROR "Unsupported TARGET_BOARD='${TARGET_BOARD}'. Use f103 or rm_dev_board_c.")
+endif()
 
 # ============================================
 # Middleware Layer - FreeRTOS
 # ============================================
-set(FREERTOS_PORT GCC_ARM_CM3)
+get_target_property(FREERTOS_PORT ${SELECTED_CHIP} INTERFACE_FREERTOS_PORT)
 set(FREERTOS_HEAP 4)
 add_subdirectory(middleware/FreeRTOS-Kernel)
 
 # ============================================
 # Application Layer
 # ============================================
-add_subdirectory(apps/blinky_f103)
+add_subdirectory(apps/${SELECTED_APP})
