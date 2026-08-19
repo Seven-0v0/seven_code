@@ -1,4 +1,8 @@
-add_executable(rm_c_blinky src/main.c)
+add_executable(rm_c_blinky
+    src/main.c
+    src/gyro_task.c
+    src/gyro_snapshot.c
+)
 
 get_target_property(CHIP_STARTUP_SOURCE chip_stm32f407ighx STARTUP_SOURCE)
 target_sources(rm_c_blinky PRIVATE ${CHIP_STARTUP_SOURCE})
@@ -6,6 +10,8 @@ target_sources(rm_c_blinky PRIVATE ${CHIP_STARTUP_SOURCE})
 target_link_libraries(rm_c_blinky PRIVATE
     board_rm_dev_board_c
     freertos_kernel
+    driver_bmi088_gyro
+    util_fmt_i32
 )
 
 target_link_options(rm_c_blinky PRIVATE

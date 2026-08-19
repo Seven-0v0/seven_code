@@ -106,7 +106,7 @@ Implemented:
 - J-Link script performs `verifybin` before reset/run.
 - README documents C-board build and flash commands.
 
-No CAN, motor, PWM actuator, friction wheel, laser, buzzer, IMU, referee, or shooting path is initialized by the current C-board diagnostic image.
+No CAN, motor, PWM actuator, friction wheel, laser, buzzer, referee, or shooting path is initialized by the C-board diagnostic image. The BMI088 gyroscope has since been added on top of this baseline; see "Completed: Host Test Harness and BMI088 Gyro Bring-Up" below for its evidence. The accelerometer half of the same sensor is still not accessed.
 
 ### Hardware evidence
 
@@ -135,26 +135,55 @@ Final HIL result:
 
 Five review lanes passed with no blockers: goal compliance, hands-on QA, code quality, physical/flash safety, and official-source context.
 
+## Completed: Host Test Harness and BMI088 Gyro Bring-Up
+
+This is the first slice of the reusable `drivers/imu/bmi088` driver and the native host test infrastructure both live on top of the Phase 1 C-board baseline. The intent is a driver that both the C board and, later, the team gimbal/chassis F405 boards can share; this session proved out the gyro half of that driver on real hardware.
+
+Implemented:
+
+- `tests/firmware/`: standalone CMake + CTest project built with the host compiler, independent of the ARM cross toolchain. Runnable with `bash tools/run_host_tests.sh`.
+- Given/When/Then unit tests for signed/unsigned integer formatting, coherent snapshot publication, and the BMI088 gyro driver's init, read, scale, and init-error paths, using a fake SPI bus (no hardware required to run these).
+- `drivers/imu/bmi088/bmi088_gyro.[ch]`: portable gyro-only driver (WHO_AM_I check, range/bandwidth/power config, one-transaction burst read, raw-to-mdps conversion). Accelerometer register access is not implemented.
+- `boards/rm_dev_board_c/src/board_imu_spi.c`: SPI1 bus init and gyro chip-select GPIO control for the C board. PA4 (accelerometer CS) is driven high once and has no runtime accessor, so the accelerometer stays deselected for the life of the program.
+- `apps/rm_c_blinky/src/gyro_task.c`: FreeRTOS task that brings up the gyro, then publishes a generation-protected `g_gyro_snapshot` and emits one pure-numeric `x,y,z` line per sample over USART1 at 50 Hz. Sequence and timestamp retain the full `uint32_t` range in the snapshot.
+
+Not implemented: accelerometer access of any kind, AHRS/sensor-fusion, calibration, CAN, motor, PWM, ADC, DMA, EXTI, or referee/vision paths.
+
+### Host test evidence
+
+- `bash tools/run_host_tests.sh`: 8/8 tests pass.
+
+### Firmware build evidence
+
+- F103 (`blinky_f103`) cross build: clean.
+- C board (`rm_dev_board_c`) cross build: clean.
+- Final `.bin`: `build-rm_dev_board_c/apps/rm_c_blinky/rm_c_blinky.bin`
+- Size: 20260 bytes
+- SHA-256: `948a913ac05e9d53d7b530f09c9ba0a57e67175a7c893e4ebfa45f4294ccf4dd`
+- Flash program and verify: PASS
+
+### J-Link session evidence
+
+- J-Link S/N: `602712225`
+- VTref: ≈ 3.28 V
+
+### BMI088 gyro evidence (from `g_gyro_snapshot` read via J-Link RAM inspection)
+
+- `init_status`: `0` (success)
+- `read_error_count`: `0`
+- Snapshot reader contract: accept only when generation is equal before/after the payload read and even; retry on odd or changed generation.
+- `g_blink_count` advanced by 10 over 5 s, matching the 500 ms LED task period (task scheduling healthy).
+- CFSR / HFSR: `0` (no fault).
+
+USART1 is designed to emit a continuous pure-numeric `x,y,z` stream (mdps) at a nominal 50 Hz. The J-Link CDC serial port on hand is not wired to PA9, so this bring-up was verified through the J-Link RAM snapshot rather than captured UART bytes. Capturing the actual UART stream with a wired USB-serial adapter remains open.
+
+Explicitly not verified: the mapping between physical board rotation (which axis, which direction) and the sign/axis of the reported x/y/z values. The numbers above are rest-state noise only. Correlating physical rotation with axis and sign is a required next gate before any downstream consumer (AHRS, control loop) can trust axis semantics.
+
 ## Current Worktree State
 
-The Phase 1 work is intentionally uncommitted. Do not reset, checkout, or overwrite it.
+Phase 1 was committed as `1fa1509`. The new host test harness and BMI088 gyro bring-up are currently uncommitted. Do not reset, checkout, or overwrite them. Run `git status --short` before continuing to see the exact current diff.
 
-Expected status includes:
-
-```text
- M .gitignore
- M CMakeLists.txt
- M README.md
- M bsp/stm32/f4/CMakeLists.txt
- M tools/build_and_flash.sh
-?? apps/rm_c_blinky/
-?? boards/rm_dev_board_c/
-?? bsp/stm32/f4/STM32F407IG_FLASH.ld
-?? cmake/chips/stm32f407ighx.cmake
-?? TODO_THREE_IN_ONE_HANDOFF.md
-```
-
-The C board currently runs `rm_c_blinky`, not the original `user_program.bin`.
+The C board currently runs `rm_c_blinky`, which now also brings up SPI1 and reports live BMI088 gyroscope data over USART1, not the original `user_program.bin`.
 
 Before continuing, run:
 
@@ -162,6 +191,7 @@ Before continuing, run:
 git status --short
 bash tools/build_and_flash.sh --no-flash
 bash tools/build_and_flash.sh --target rm_dev_board_c --no-flash
+bash tools/run_host_tests.sh
 ```
 
 Do not commit unless explicitly requested.
@@ -170,10 +200,10 @@ Do not commit unless explicitly requested.
 
 ### P0: Add native C test infrastructure
 
-- [ ] Add `tests/firmware/` using native host GCC and CTest.
-- [ ] Keep host tests separate from the ARM cross-toolchain build.
-- [ ] Require Given/When/Then test structure.
-- [ ] Add byte-exact golden fixtures captured from official/team implementations.
+- [x] Add `tests/firmware/` using native host GCC and CTest. Run with `bash tools/run_host_tests.sh`; 8/8 pass.
+- [x] Keep host tests separate from the ARM cross-toolchain build. `tests/firmware/` is its own CMake project built with the host compiler into `build-host-tests/`.
+- [x] Require Given/When/Then test structure. Applied in `test_harness_meta.c`, `test_fmt_i32.c`, and the four `test_bmi088_gyro_*.c` files.
+- [ ] Add byte-exact golden fixtures captured from official/team implementations. Not yet needed: current tests cover `fmt_i32` and the BMI088 gyro driver against a fake bus, not protocol byte fixtures. Still open for CRC/DBUS/DJI/referee ports below.
 
 ### P0: Port pure modules test-first
 
@@ -192,8 +222,10 @@ Do not port official bundled HAL, CMSIS, FreeRTOS, CubeMX generated projects, or
 
 Complete these in order and save evidence at every gate:
 
-- [ ] SPI and BMI088 WHO_AM_I.
-- [ ] BMI088 raw accelerometer and gyro data.
+- [x] SPI and BMI088 WHO_AM_I. Verified via J-Link RAM snapshot: `init_status = 0`. See "Completed: Host Test Harness and BMI088 Gyro Bring-Up" above.
+- [x] BMI088 raw gyro data. Live 50 Hz snapshots confirmed via J-Link; UART byte capture still open (CDC not wired to PA9 this session).
+- [ ] BMI088 raw accelerometer data. Not started; PA4 (accel CS) is held high and unused.
+- [ ] Physical rotation axis/sign mapping for the gyro. Not verified; rest-state snapshots only. Required before any AHRS/control consumer trusts axis semantics.
 - [ ] INS/AHRS output; correlate physical board rotation with timestamped logs.
 - [ ] DBUS channels, switches, mouse, and keyboard.
 - [ ] CAN internal loopback.
@@ -216,7 +248,7 @@ Use:
 - [ ] `drivers/motor/dji`: byte-exact DJI frame codecs.
 - [ ] `drivers/motor/lk6010`: LK protocol and feedback.
 - [ ] `drivers/motor/dm`: DM command/feedback codec.
-- [ ] `drivers/imu/bmi088`: C-board and team-gimbal reusable driver.
+- [ ] `drivers/imu/bmi088`: C-board and team-gimbal reusable driver. Gyro path implemented and hardware-verified; accelerometer path remains open, so the shared driver is not complete.
 - [ ] `drivers/imu/hipnuc`: CH010/HiPNUC parser and continuous yaw.
 - [ ] `drivers/imu/jy61p`: chassis IMU driver.
 - [ ] `drivers/remote/dbus`: transport-independent DBUS parser.
@@ -336,5 +368,5 @@ Do not accept "looks correct". Capture:
 In a new session, use:
 
 ```text
-Read TODO_THREE_IN_ONE_HANDOFF.md and continue from Phase 2. First verify the uncommitted Phase 1 work, then add the host firmware test harness and port CRC/FIFO/PID test-first. Keep the C board zero-actuation.
+Read TODO_THREE_IN_ONE_HANDOFF.md. The host test harness and the BMI088 gyro path are done and hardware-verified; the accelerometer path, physical axis/sign mapping, and INS/AHRS are not. First verify the uncommitted worktree with `git status --short`, then either wire a UART capture path to confirm the G,seq,t_ms,x,y,z stream over the wire, or continue with BMI088 accelerometer bring-up and axis/sign verification. Keep the C board zero-actuation and port CRC/FIFO/PID test-first alongside.
 ```

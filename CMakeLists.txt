@@ -35,6 +35,10 @@ elseif(TARGET_BOARD STREQUAL "rm_dev_board_c")
     include(cmake/chips/stm32f407ighx.cmake)
     add_subdirectory(bsp/stm32/f4)
     add_subdirectory(boards/rm_dev_board_c)
+    # Portable units this board's app links. Added only in this branch so the
+    # f103 target's source set stays exactly as it was.
+    add_subdirectory(drivers/imu/bmi088)
+    add_subdirectory(drivers/util/fmt)
     set(SELECTED_CHIP chip_stm32f407ighx)
     set(SELECTED_APP rm_c_blinky)
 else()

@@ -26,6 +26,7 @@
 #define configUSE_TICK_HOOK                     0
 #define configUSE_IDLE_HOOK                     0
 #define INCLUDE_vTaskDelay                      1
+#define INCLUDE_xTaskDelayUntil                 1
 
 #ifdef __NVIC_PRIO_BITS
     #define configPRIO_BITS __NVIC_PRIO_BITS

@@ -2,6 +2,7 @@
 #include "task.h"
 
 #include "board.h"
+#include "gyro_task.h"
 
 volatile uint32_t g_blink_count;
 
@@ -43,7 +44,18 @@ int main(void)
     board_diagnostic_uart_init();
     board_diagnostic_uart_write(boot_message, sizeof(boot_message) - 1U);
 
+    /* SPI1 and the chip selects are brought up before the scheduler so the
+     * gyro task finds a ready bus; the device bring-up itself runs inside
+     * that task, where its 80 ms reset settle can yield. */
+    board_imu_spi_init();
+
     if (xTaskCreate(blink_task, "blink", configMINIMAL_STACK_SIZE, NULL, 1, NULL) != pdPASS) {
+        board_led_set(0U);
+        for (;;) {
+        }
+    }
+
+    if (gyro_task_create() != pdPASS) {
         board_led_set(0U);
         for (;;) {
         }

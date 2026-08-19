@@ -91,9 +91,19 @@ bash tools/build_and_flash.sh --target rm_dev_board_c --no-flash
 cd tools/jlink
 ./flash_app.sh ../../build/apps/blinky_f103/blinky_f103.bin
 
-# C 板：构建、烧录并校验（仅 LED、内部 TIM6 时间基与 USART1 TX）
+# C 板：构建、烧录并校验（LED、TIM6 时间基、BMI088 陀螺仪；USART1 仅实现未线测）
 bash tools/build_and_flash.sh --target rm_dev_board_c
 ```
+
+### 5. 运行主机侧测试
+
+`tests/firmware/` 是一套独立于 ARM 交叉编译链的原生主机测试工程（host GCC + CTest），用来在不接硬件的情况下验证纯逻辑（数值格式化、BMI088 陀螺仪驱动的初始化/读取/量程换算）。
+
+```bash
+bash tools/run_host_tests.sh
+```
+
+该脚本会把 `tests/firmware/` 配置为独立 CMake 项目、编译，并跑 CTest。当前 8/8 测试通过。
 
 ## 📚 分层说明
 
@@ -155,6 +165,28 @@ cd boards/my_board
 
 # 4. 创建板子时 include 这个芯片配置表
 ```
+
+## 🔬 C 板（rm_dev_board_c）硬件状态
+
+`apps/rm_c_blinky` 目前已在真实的 RoboMaster Development Board C 上验证：LED 心跳，以及经 SPI1 访问的 BMI088 陀螺仪原始读数。USART1 诊断输出路径已实现但尚未通过外接串口线抓取。加速度计尚未接入，PA4（加速度计片选）常拉高、未使用。CAN、电机、PWM、ADC、DMA、EXTI、AHRS/姿态融合、标定均未接入，也不在当前固件范围内。
+
+固件通电后，USART1（PA9，TX only）以 50 Hz 输出纯数字 `x,y,z`（角速度单位 mdps）。sequence、时间戳按完整 `uint32_t` 保存在 J-Link 可读的 `g_gyro_snapshot` 中。
+
+`g_gyro_snapshot` 使用 generation 协议避免调试器接受撕裂的多字段快照：先读 generation；奇数则重试；读取 payload 后再次读取 generation；仅当前后相同且为偶数时接受。
+
+已实测证据（J-Link 会话）：
+
+- 主机测试：8/8 通过（`bash tools/run_host_tests.sh`）。
+- F103 与 C 板（`rm_dev_board_c`）交叉编译均为 clean build。
+- 固件 `.bin`：20260 字节，SHA-256 `948a913ac05e9d53d7b530f09c9ba0a57e67175a7c893e4ebfa45f4294ccf4dd`。
+- 烧录 + 校验：PASS。
+- J-Link S/N `602712225`，VTref ≈3.28 V。
+- BMI088 陀螺仪：`init_status = 0`，`read_error_count = 0`。
+- 实测 generation 协议与 50 Hz 任务发布一致。
+- LED 心跳 `g_blink_count` 每 5 秒 +10（500 ms 周期），任务调度正常。
+- CFSR / HFSR 均为 `0`（无 fault）。
+
+尚未验证：物理转动方向与坐标轴符号的映射关系（即转动板子某一轴，读数是否按预期符号变化）。这项留作后续硬件门禁，当前不作为已完成项声明。
 
 ## ✨ 特性
 
