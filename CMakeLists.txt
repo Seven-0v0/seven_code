@@ -48,6 +48,8 @@ endif()
 # ============================================
 # Middleware Layer - FreeRTOS
 # ============================================
+add_subdirectory(middleware/imu)
+
 get_target_property(FREERTOS_PORT ${SELECTED_CHIP} INTERFACE_FREERTOS_PORT)
 set(FREERTOS_HEAP 4)
 add_subdirectory(middleware/FreeRTOS-Kernel)
