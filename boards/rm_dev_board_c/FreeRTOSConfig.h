@@ -13,9 +13,10 @@
 #define configTICK_RATE_HZ                      ((TickType_t)1000)
 #define configCPU_CLOCK_HZ                      ((unsigned long)BOARD_CPU_FREQ_HZ)
 
-#define configTOTAL_HEAP_SIZE                   ((size_t)8192)
+#define configTOTAL_HEAP_SIZE                   ((size_t)16384)
 #define configUSE_MALLOC_FAILED_HOOK            1
 #define configCHECK_FOR_STACK_OVERFLOW          2
+#define INCLUDE_uxTaskGetStackHighWaterMark     1
 
 #define configUSE_MUTEXES                       0
 #define configUSE_RECURSIVE_MUTEXES             0

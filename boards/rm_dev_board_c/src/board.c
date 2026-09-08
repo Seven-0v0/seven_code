@@ -1,6 +1,5 @@
 #include "board.h"
 
-static UART_HandleTypeDef diagnostic_uart;
 static TIM_HandleTypeDef hal_timebase;
 
 static void halt_on_hal_error(HAL_StatusTypeDef status)
@@ -94,33 +93,4 @@ void board_led_set(uint32_t state)
 {
     HAL_GPIO_WritePin(BOARD_LED_PORT, BOARD_LED_PIN,
                       state == 0U ? GPIO_PIN_RESET : GPIO_PIN_SET);
-}
-
-void board_diagnostic_uart_init(void)
-{
-    GPIO_InitTypeDef pin = {0};
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_USART1_CLK_ENABLE();
-    pin.Pin = BOARD_DIAGNOSTIC_UART_TX_PIN;
-    pin.Mode = GPIO_MODE_AF_PP;
-    pin.Pull = GPIO_PULLUP;
-    pin.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    pin.Alternate = GPIO_AF7_USART1;
-    HAL_GPIO_Init(BOARD_DIAGNOSTIC_UART_PORT, &pin);
-
-    diagnostic_uart.Instance = BOARD_DIAGNOSTIC_UART;
-    diagnostic_uart.Init.BaudRate = 115200;
-    diagnostic_uart.Init.WordLength = UART_WORDLENGTH_8B;
-    diagnostic_uart.Init.StopBits = UART_STOPBITS_1;
-    diagnostic_uart.Init.Parity = UART_PARITY_NONE;
-    diagnostic_uart.Init.Mode = UART_MODE_TX;
-    diagnostic_uart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    diagnostic_uart.Init.OverSampling = UART_OVERSAMPLING_16;
-    halt_on_hal_error(HAL_UART_Init(&diagnostic_uart));
-}
-
-void board_diagnostic_uart_write(const uint8_t *data, uint16_t length)
-{
-    halt_on_hal_error(HAL_UART_Transmit(&diagnostic_uart, (uint8_t *)data, length, HAL_MAX_DELAY));
 }

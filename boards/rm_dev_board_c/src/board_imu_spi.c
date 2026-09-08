@@ -21,9 +21,7 @@ void board_imu_spi_init(void)
     __HAL_RCC_SPI1_CLK_ENABLE();
 
     /* Preload both selects high so neither device is addressed during the
-     * push-pull switch from input to output. PA4 is written once here and never
-     * driven again: no accel accessor exists, so it cannot be pulled low.
-     */
+     * push-pull switch from input to output. */
     HAL_GPIO_WritePin(BOARD_IMU_GYRO_CS_PORT, BOARD_IMU_GYRO_CS_PIN, GPIO_PIN_SET);
     HAL_GPIO_WritePin(BOARD_IMU_ACCEL_CS_PORT, BOARD_IMU_ACCEL_CS_PIN, GPIO_PIN_SET);
 
@@ -67,6 +65,16 @@ void board_imu_gyro_select(void)
 void board_imu_gyro_deselect(void)
 {
     HAL_GPIO_WritePin(BOARD_IMU_GYRO_CS_PORT, BOARD_IMU_GYRO_CS_PIN, GPIO_PIN_SET);
+}
+
+void board_imu_accel_select(void)
+{
+    HAL_GPIO_WritePin(BOARD_IMU_ACCEL_CS_PORT, BOARD_IMU_ACCEL_CS_PIN, GPIO_PIN_RESET);
+}
+
+void board_imu_accel_deselect(void)
+{
+    HAL_GPIO_WritePin(BOARD_IMU_ACCEL_CS_PORT, BOARD_IMU_ACCEL_CS_PIN, GPIO_PIN_SET);
 }
 
 bool board_imu_spi_transfer(const uint8_t *tx, uint8_t *rx, uint16_t length)

@@ -35,14 +35,9 @@ static void blink_task(void *context)
 
 int main(void)
 {
-    static const uint8_t boot_message[] =
-        "[BOOT] RoboMaster Development Board C safe LED/UART diagnostic\r\n";
-
     HAL_Init();
     board_clock_init();
     board_led_init();
-    board_diagnostic_uart_init();
-    board_diagnostic_uart_write(boot_message, sizeof(boot_message) - 1U);
 
     /* SPI1 and the chip selects are brought up before the scheduler so the
      * gyro task finds a ready bus; the device bring-up itself runs inside
