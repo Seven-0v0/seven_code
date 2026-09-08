@@ -5,6 +5,7 @@ static TIM_HandleTypeDef hal_timebase;
 static void halt_on_hal_error(HAL_StatusTypeDef status)
 {
     if (status != HAL_OK) {
+        board_imu_heater_force_off();
         for (;;) {
         }
     }

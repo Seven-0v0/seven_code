@@ -7,8 +7,9 @@
  *
  * The gyroscope is treated as read-only after configuration. The driver
  * never touches accelerometer registers, data-ready interrupt registers, or
- * any interrupt routing, and it reports rates as integer milli-degrees per
- * second so no floating point is required anywhere in the signal path.
+ * any interrupt routing. Samples retain both raw counts and integer
+ * milli-degrees per second: raw counts are the precision source for long bias
+ * estimation, while mdps remains convenient debugger observability.
  */
 #ifndef DRIVERS_IMU_BMI088_BMI088_GYRO_H
 #define DRIVERS_IMU_BMI088_BMI088_GYRO_H
@@ -51,6 +52,9 @@ typedef struct {
     int32_t x_mdps;
     int32_t y_mdps;
     int32_t z_mdps;
+    int16_t x_raw;
+    int16_t y_raw;
+    int16_t z_raw;
 } bmi088_gyro_sample;
 
 /* Driver handle. Holds the injected bus by value; treat the contents as
@@ -76,6 +80,9 @@ bmi088_gyro_status bmi088_gyro_read(const bmi088_gyro *dev,
  * exactly 15625/256 mdps, so the conversion is integer-exact and needs no
  * floating point. */
 int32_t bmi088_gyro_raw_to_mdps(int16_t raw);
+
+/* Converts a raw count without passing through integer mdps quantization. */
+float bmi088_gyro_raw_to_dps(int16_t raw);
 
 /* A short, stable, non-NULL description of a status value. */
 const char *bmi088_gyro_status_text(bmi088_gyro_status status);

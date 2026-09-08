@@ -12,6 +12,7 @@ imu_angular_acceleration_dps2 imu_angular_acceleration_update(
     imu_gyro_dps gyro_dps,
     float dt_s) {
     if (dt_s <= 0.0f) {
+        filter->has_previous_rate = false;
         return filter->acceleration_dps2;
     }
 

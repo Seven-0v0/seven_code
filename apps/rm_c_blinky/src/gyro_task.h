@@ -1,4 +1,4 @@
-/* 50 Hz BMI088 IMU observation task for RoboMaster Development Board C.
+/* 1 kHz BMI088 IMU observation task for RoboMaster Development Board C.
  *
  * Owns both BMI088 devices after the scheduler starts: it binds the portable
  * drivers to this board's SPI adapter, brings them up, and keeps a plain

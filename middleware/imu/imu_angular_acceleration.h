@@ -23,7 +23,7 @@ void imu_angular_acceleration_init(imu_angular_acceleration_filter *filter,
                                    float smoothing_alpha);
 
 /* Returns filtered angular acceleration in dps2. The first sample returns
- * zero acceleration. A non-positive dt_s leaves the filter unchanged. */
+ * zero acceleration. A non-positive dt_s clears temporal continuity. */
 imu_angular_acceleration_dps2 imu_angular_acceleration_update(
     imu_angular_acceleration_filter *filter,
     imu_gyro_dps gyro_dps,

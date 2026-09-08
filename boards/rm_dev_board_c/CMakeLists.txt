@@ -1,10 +1,14 @@
 add_library(board_rm_dev_board_c INTERFACE)
 target_sources(board_rm_dev_board_c INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/src/board.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/board_imu_heater.c
     ${CMAKE_CURRENT_LIST_DIR}/src/board_imu_spi.c
 )
 target_include_directories(board_rm_dev_board_c INTERFACE ${CMAKE_CURRENT_LIST_DIR})
-target_compile_definitions(board_rm_dev_board_c INTERFACE HSE_VALUE=${BOARD_HSE_VALUE})
+target_compile_definitions(board_rm_dev_board_c INTERFACE
+    HSE_VALUE=${BOARD_HSE_VALUE}
+    BOARD_RM_DEV_BOARD_C_BMI088_HEATER_ENABLED=$<BOOL:${RM_DEV_BOARD_C_ENABLE_BMI088_HEATER}>
+)
 target_link_libraries(board_rm_dev_board_c INTERFACE chip_stm32f407ighx)
 
 # The RTOS compiles through this target, so it receives the selected chip's FPU ABI.

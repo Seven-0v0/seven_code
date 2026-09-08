@@ -20,6 +20,6 @@ bool imu_stationarity_is_stationary(const imu_stationarity_config *config,
     return gyro_squared_dps2 <= max_gyro_squared_dps2 &&
            acceleration_magnitude_g >=
                config->min_acceleration_magnitude_g &&
-           acceleration_magnitude_g <=
-               config->max_acceleration_magnitude_g;
+            acceleration_magnitude_g <=
+                config->max_acceleration_magnitude_g;
 }

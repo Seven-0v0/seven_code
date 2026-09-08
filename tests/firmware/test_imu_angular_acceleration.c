@@ -76,7 +76,7 @@ static void test_smoothing_alpha_halves_each_step(void) {
                           "settling step must halve toward zero again");
 }
 
-static void test_non_positive_dt_leaves_state_unchanged(void) {
+static void test_non_positive_dt_clears_temporal_continuity(void) {
     imu_angular_acceleration_filter filter;
     imu_angular_acceleration_init(&filter, 1.0f);
 
@@ -96,6 +96,11 @@ static void test_non_positive_dt_leaves_state_unchanged(void) {
         imu_angular_acceleration_update(&filter, moving, -1.0f);
     TEST_CHECK_NEAR_FLOAT(with_bad_dt.x_dps2, after_seed.x_dps2, 0.0f,
                           "negative dt must keep the last filtered value");
+    const imu_angular_acceleration_dps2 recovered =
+        imu_angular_acceleration_update(
+            &filter, (imu_gyro_dps){200.0f, 0.0f, 0.0f}, 0.01f);
+    TEST_CHECK_NEAR_FLOAT(recovered.x_dps2, after_seed.x_dps2, 0.0f,
+                          "first sample after a timing gap must only reseed");
 }
 
 static void test_alpha_out_of_range_is_clamped(void) {
@@ -117,7 +122,7 @@ int main(void) {
     test_constant_rate_ramp_reports_constant_dps2();
     test_rate_step_down_reports_negative_dps2();
     test_smoothing_alpha_halves_each_step();
-    test_non_positive_dt_leaves_state_unchanged();
+    test_non_positive_dt_clears_temporal_continuity();
     test_alpha_out_of_range_is_clamped();
     return test_support_result();
 }

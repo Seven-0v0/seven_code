@@ -27,6 +27,16 @@
 #define BOARD_IMU_ACCEL_CS_PORT GPIOA
 #define BOARD_IMU_ACCEL_CS_PIN GPIO_PIN_4
 
+/* Official example 16 heater output: PF6 / TIM10_CH1 / AF3. TIM10 runs from
+ * APB2's 168 MHz timer clock at PSC=0 and ARR=4999 (33.6 kHz PWM). */
+#define BOARD_IMU_HEATER_PORT GPIOF
+#define BOARD_IMU_HEATER_PIN GPIO_PIN_6
+#define BOARD_IMU_HEATER_TIMER TIM10
+#define BOARD_IMU_HEATER_CHANNEL TIM_CHANNEL_1
+#define BOARD_IMU_HEATER_ALTERNATE GPIO_AF3_TIM10
+#define BOARD_IMU_HEATER_PERIOD 4999u
+#define BOARD_IMU_HEATER_MAX_DUTY 4500u
+
 void board_clock_init(void);
 void board_led_init(void);
 void board_led_toggle(void);
@@ -37,5 +47,8 @@ void board_imu_gyro_deselect(void);
 void board_imu_accel_select(void);
 void board_imu_accel_deselect(void);
 bool board_imu_spi_transfer(const uint8_t *tx, uint8_t *rx, uint16_t length);
+bool board_imu_heater_init(void);
+void board_imu_heater_set_duty(uint16_t duty);
+void board_imu_heater_force_off(void);
 
 #endif

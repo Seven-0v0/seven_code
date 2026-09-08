@@ -10,13 +10,14 @@
 
 #define GYRO_SNAPSHOT_INIT_PENDING (-1)
 #define GYRO_SNAPSHOT_ACCEL_INIT_PENDING (-1)
-#define GYRO_SNAPSHOT_PAYLOAD_MAX_SIZE 256u
+#define GYRO_SNAPSHOT_PAYLOAD_MAX_SIZE 384u
 
 typedef struct {
     uint32_t sequence;
     int32_t init_status;
     uint32_t read_error_count;
     bmi088_gyro_status last_read_status;
+    bool gyro_sample_valid;
     int32_t x_mdps;
     int32_t y_mdps;
     int32_t z_mdps;
@@ -28,6 +29,28 @@ typedef struct {
     uint32_t temperature_read_count;
     uint32_t temperature_read_error_count;
     int32_t temperature_mdeg_c;
+    uint32_t heater_state;
+    uint32_t heater_fault;
+    uint16_t heater_duty;
+    float sample_dt_s;
+    uint32_t skipped_cycles;
+    float temperature_degc;
+    float temperature_slope_degc_per_s;
+    bool temperature_valid;
+    bool sample_stationary;
+    float heater_stable_time_s;
+    uint32_t stack_high_water_words;
+    uint32_t experiment_phase;
+    uint32_t settling_accepted_samples;
+    uint32_t calibration_reset_count;
+    uint32_t hold_out_accepted_samples;
+    float experiment_phase_elapsed_s;
+    float experiment_phase_required_s;
+    float hold_out_wall_duration_s;
+    float hold_out_accepted_duration_s;
+    float hold_out_unobserved_duration_s;
+    bool bias_frozen;
+    bool hold_out_valid;
     int32_t accel_x_ug;
     int32_t accel_y_ug;
     int32_t accel_z_ug;
@@ -54,8 +77,11 @@ typedef struct {
     float yaw_deg;
     uint32_t calibration_accepted_samples;
     bool calibration_complete;
-    uint32_t stationary_samples;
-    float stationary_duration_s;
+    float hold_out_gyro_bias_x_dps;
+    float hold_out_gyro_bias_y_dps;
+    float hold_out_gyro_bias_z_dps;
+    uint32_t drift_sample_count;
+    float drift_observed_duration_s;
     float drift_mean_x_dps;
     float drift_mean_y_dps;
     float drift_mean_z_dps;
@@ -64,6 +90,14 @@ typedef struct {
     float drift_rms_z_dps;
     float yaw_drift_deg;
     float yaw_drift_deg_per_min;
+    float calibrated_drift_mean_x_dps;
+    float calibrated_drift_mean_y_dps;
+    float calibrated_drift_mean_z_dps;
+    float calibrated_drift_rms_x_dps;
+    float calibrated_drift_rms_y_dps;
+    float calibrated_drift_rms_z_dps;
+    float calibrated_yaw_drift_deg;
+    float calibrated_yaw_drift_deg_per_min;
 } gyro_snapshot_payload;
 
 _Static_assert(sizeof(gyro_snapshot_payload) <= GYRO_SNAPSHOT_PAYLOAD_MAX_SIZE,

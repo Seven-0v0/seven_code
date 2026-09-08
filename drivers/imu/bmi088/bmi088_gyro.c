@@ -18,10 +18,9 @@
 #define CHIP_ID_GYRO 0x0Fu
 #define SOFTRESET_CMD 0xB6u
 
-/* Configuration values: +/-2000 dps full scale, 1000 Hz output data rate
- * with the 116 Hz filter bandwidth, and normal power mode. Bit 7 of the
- * bandwidth register reads back as 1 and must be written as 1, which is why
- * the 1000 Hz / 116 Hz selection is 0x82 rather than 0x02. */
+/* RoboMaster operation keeps the full dynamic range and reads every 1 kHz
+ * output. The 116 Hz filter is selected by 0x82 because bit 7 reads back as
+ * one in addition to the 0x02 mode code. */
 #define RANGE_2000_DPS 0x00u
 #define BANDWIDTH_1000HZ_ODR_116HZ 0x82u
 #define POWER_NORMAL 0x00u
@@ -47,6 +46,8 @@
  * one LSB is 2000/32768 dps == 15625/256 mdps. */
 #define MDPS_NUMERATOR 15625
 #define MDPS_DENOMINATOR 256
+#define DPS_NUMERATOR 2000.0f
+#define DPS_DENOMINATOR 32768.0f
 
 /* Performs one chip-select-framed transfer, keeping select and deselect
  * paired even when the bus reports an error. */
@@ -185,9 +186,17 @@ bmi088_gyro_status bmi088_gyro_read(const bmi088_gyro *dev,
         return BMI088_GYRO_ERR_CHIP_ID;
     }
 
-    sample->x_mdps = bmi088_gyro_raw_to_mdps(decode_axis(rx, BURST_X_LSB));
-    sample->y_mdps = bmi088_gyro_raw_to_mdps(decode_axis(rx, BURST_Y_LSB));
-    sample->z_mdps = bmi088_gyro_raw_to_mdps(decode_axis(rx, BURST_Z_LSB));
+    const int16_t x_raw = decode_axis(rx, BURST_X_LSB);
+    const int16_t y_raw = decode_axis(rx, BURST_Y_LSB);
+    const int16_t z_raw = decode_axis(rx, BURST_Z_LSB);
+    *sample = (bmi088_gyro_sample){
+        .x_mdps = bmi088_gyro_raw_to_mdps(x_raw),
+        .y_mdps = bmi088_gyro_raw_to_mdps(y_raw),
+        .z_mdps = bmi088_gyro_raw_to_mdps(z_raw),
+        .x_raw = x_raw,
+        .y_raw = y_raw,
+        .z_raw = z_raw,
+    };
     return BMI088_GYRO_OK;
 }
 
@@ -196,6 +205,10 @@ int32_t bmi088_gyro_raw_to_mdps(int16_t raw) {
      * is about 5.1e8 and well inside the int32 range. */
     const int32_t scaled = (int32_t)raw * (int32_t)MDPS_NUMERATOR;
     return scaled / (int32_t)MDPS_DENOMINATOR;
+}
+
+float bmi088_gyro_raw_to_dps(int16_t raw) {
+    return (float)raw * DPS_NUMERATOR / DPS_DENOMINATOR;
 }
 
 const char *bmi088_gyro_status_text(bmi088_gyro_status status) {

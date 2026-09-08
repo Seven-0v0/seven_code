@@ -48,6 +48,16 @@ add_firmware_test(test_imu_calibration test_imu_calibration.c middleware_imu)
 add_firmware_test(test_imu_angular_acceleration test_imu_angular_acceleration.c middleware_imu)
 add_firmware_test(test_imu_attitude test_imu_attitude.c middleware_imu)
 add_firmware_test(test_imu_drift test_imu_drift.c middleware_imu)
+add_firmware_test(test_imu_temperature_gate test_imu_temperature_gate.c middleware_imu)
+add_firmware_test(test_imu_stationary_experiment test_imu_stationary_experiment.c middleware_imu)
+add_firmware_test(test_heater_control test_heater_control.c)
+target_sources(test_heater_control PRIVATE
+    ${REPO_ROOT}/apps/rm_c_blinky/src/heater_control.c
+)
+target_include_directories(test_heater_control PRIVATE
+    ${REPO_ROOT}/apps/rm_c_blinky/src
+)
+target_link_libraries(test_heater_control PRIVATE m)
 add_firmware_test(test_rm_c_imu_pipeline test_rm_c_imu_pipeline.c middleware_imu)
 target_sources(test_rm_c_imu_pipeline PRIVATE
     ${REPO_ROOT}/apps/rm_c_blinky/src/imu_pipeline.c
@@ -60,10 +70,11 @@ add_firmware_test(test_fmt_u32 test_fmt_u32.c util_fmt_i32)
 add_executable(test_gyro_snapshot
     test_gyro_snapshot.c
     ${REPO_ROOT}/apps/rm_c_blinky/src/gyro_snapshot.c
+    ${REPO_ROOT}/apps/rm_c_blinky/src/imu_pipeline_snapshot.c
 )
 target_include_directories(test_gyro_snapshot PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${REPO_ROOT}/apps/rm_c_blinky/src
 )
-target_link_libraries(test_gyro_snapshot PRIVATE driver_bmi088_gyro)
+target_link_libraries(test_gyro_snapshot PRIVATE driver_bmi088_gyro middleware_imu)
 add_test(NAME test_gyro_snapshot COMMAND test_gyro_snapshot)

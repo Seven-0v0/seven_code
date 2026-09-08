@@ -18,9 +18,9 @@ static void test_fresh_drift_reports_zero_statistics(void) {
 
     const imu_drift_statistics stats = imu_gyro_drift_statistics(&drift);
 
-    TEST_CHECK_EQ_INT(stats.stationary_samples, 0u,
+    TEST_CHECK_EQ_INT(stats.sample_count, 0u,
                       "fresh drift must report no samples");
-    TEST_CHECK_NEAR_FLOAT(stats.stationary_duration_s, 0.0f, 0.0f,
+    TEST_CHECK_NEAR_FLOAT(stats.observed_duration_s, 0.0f, 0.0f,
                           "fresh drift must report zero duration");
     TEST_CHECK_NEAR_FLOAT(stats.rms_dps.x_dps, 0.0f, 0.0f,
                           "fresh drift must report zero x noise");
@@ -44,7 +44,7 @@ static void test_non_stationary_and_non_positive_dt_are_rejected(void) {
                "free fall must be rejected");
     TEST_CHECK(!imu_gyro_drift_update(&drift, quiet, test_level_accel, 0.0f),
                "zero dt must be rejected");
-    TEST_CHECK_EQ_INT(drift.stationary_samples, 0u,
+    TEST_CHECK_EQ_INT(drift.sample_count, 0u,
                       "rejected samples must not count");
 }
 
@@ -61,9 +61,9 @@ static void test_constant_bias_reports_mean_but_zero_noise_rms(void) {
 
     const imu_drift_statistics stats = imu_gyro_drift_statistics(&drift);
 
-    TEST_CHECK_EQ_INT(stats.stationary_samples, 10u,
+    TEST_CHECK_EQ_INT(stats.sample_count, 10u,
                       "all ten biased samples must count");
-    TEST_CHECK_NEAR_FLOAT(stats.stationary_duration_s, 1.0f, 1e-5f,
+    TEST_CHECK_NEAR_FLOAT(stats.observed_duration_s, 1.0f, 1e-5f,
                           "ten 0.1 s samples must total one second");
     TEST_CHECK_NEAR_FLOAT(stats.mean_dps.x_dps, 0.3f, 1e-6f,
                           "constant x bias must appear in the mean");
@@ -101,7 +101,7 @@ static void test_yaw_drift_rate_scales_to_degrees_per_minute(void) {
 
     const imu_drift_statistics stats = imu_gyro_drift_statistics(&drift);
 
-    TEST_CHECK_NEAR_FLOAT(stats.stationary_duration_s, 30.0f, 1e-4f,
+    TEST_CHECK_NEAR_FLOAT(stats.observed_duration_s, 30.0f, 1e-4f,
                           "sixty 0.5 s samples must total thirty seconds");
     TEST_CHECK_NEAR_FLOAT(stats.yaw_drift_deg, 15.0f, 1e-3f,
                           "0.5 dps over 30 s must integrate to 15 degrees");
@@ -121,10 +121,25 @@ static void test_rejected_samples_do_not_advance_duration(void) {
 
     const imu_drift_statistics stats = imu_gyro_drift_statistics(&drift);
 
-    TEST_CHECK_EQ_INT(stats.stationary_samples, 1u,
+    TEST_CHECK_EQ_INT(stats.sample_count, 1u,
                       "moving samples must not count toward the mean");
-    TEST_CHECK_NEAR_FLOAT(stats.stationary_duration_s, 0.5f, 1e-6f,
+    TEST_CHECK_NEAR_FLOAT(stats.observed_duration_s, 0.5f, 1e-6f,
                           "moving samples must not extend the duration");
+}
+
+static void test_long_hold_out_keeps_double_precision(void) {
+    imu_gyro_drift drift;
+    imu_gyro_drift_init(&drift, &test_config);
+    const imu_gyro_dps rate = {0.0f, 0.0f, 0.001f};
+
+    for (uint32_t sample = 0u; sample < 600000u; sample++) {
+        (void)imu_gyro_drift_update_ungated(&drift, rate, 0.001f);
+    }
+
+    TEST_CHECK(fabs(drift.duration_s - 600.0000285) < 1e-6,
+               "double accumulation must retain float-dt input precision");
+    TEST_CHECK(fabs(drift.yaw_drift_deg - 0.600000057) < 1e-6,
+               "double yaw accumulation must not add float rounding drift");
 }
 
 int main(void) {
@@ -134,5 +149,6 @@ int main(void) {
     test_alternating_noise_reports_ac_rms();
     test_yaw_drift_rate_scales_to_degrees_per_minute();
     test_rejected_samples_do_not_advance_duration();
+    test_long_hold_out_keeps_double_precision();
     return test_support_result();
 }

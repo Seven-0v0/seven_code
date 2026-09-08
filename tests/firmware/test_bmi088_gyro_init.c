@@ -54,8 +54,8 @@ static void test_init_issues_exact_sequence(void) {
     TEST_CHECK_EQ_INT(fake.ops[5].addr, REG_CHIP_ID, "op5 must re-read ID");
 
     /* Each configuration register is written, settled, then read back.
-     * 0x82 selects 1000 Hz ODR with the 116 Hz filter bandwidth; bit 7 is
-     * a reserved-set bit, so 0x02 would be the wrong value. */
+     * 0x82 selects 1000 Hz ODR with the 116 Hz filter bandwidth; bit 7 reads
+     * back set, so 0x02 would be the wrong value. */
     const uint8_t cfg_addr[3] = {REG_RANGE, REG_BANDWIDTH, REG_POWER};
     const uint8_t cfg_value[3] = {0x00, 0x82, 0x00};
     for (int i = 0; i < 3; i++) {
@@ -82,6 +82,8 @@ static void test_init_issues_exact_sequence(void) {
      * above, so a wrong ODR/bandwidth selection fails by name. */
     TEST_CHECK_EQ_INT(fake.ops[9].addr, REG_BANDWIDTH,
                       "op9 must write the bandwidth register");
+    TEST_CHECK_EQ_INT(fake.ops[6].value, 0x00,
+                      "range must be 0x00 (+/-2000 dps)");
     TEST_CHECK_EQ_INT(fake.ops[9].value, 0x82,
                       "bandwidth must be 0x82 (1000 Hz ODR, 116 Hz filter)");
 

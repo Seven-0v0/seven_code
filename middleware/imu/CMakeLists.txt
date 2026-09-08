@@ -6,6 +6,8 @@ add_library(middleware_imu INTERFACE)
 
 target_sources(middleware_imu INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_stationarity.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/imu_stationary_experiment.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/imu_temperature_gate.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_calibration.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_angular_acceleration.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_attitude.c

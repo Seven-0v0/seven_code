@@ -7,6 +7,7 @@ static SPI_HandleTypeDef imu_spi;
 static void halt_on_hal_error(HAL_StatusTypeDef status)
 {
     if (status != HAL_OK) {
+        board_imu_heater_force_off();
         for (;;) {
         }
     }
@@ -49,7 +50,7 @@ void board_imu_spi_init(void)
     imu_spi.Init.CLKPolarity = SPI_POLARITY_HIGH;
     imu_spi.Init.CLKPhase = SPI_PHASE_2EDGE;
     imu_spi.Init.NSS = SPI_NSS_SOFT;
-    imu_spi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    imu_spi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
     imu_spi.Init.FirstBit = SPI_FIRSTBIT_MSB;
     imu_spi.Init.TIMode = SPI_TIMODE_DISABLE;
     imu_spi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

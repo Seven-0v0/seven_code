@@ -2,7 +2,10 @@ add_executable(rm_c_blinky
     src/main.c
     src/gyro_task.c
     src/gyro_snapshot.c
+    src/heater_control.c
+    src/heater_experiment.c
     src/imu_pipeline.c
+    src/imu_pipeline_snapshot.c
 )
 
 get_target_property(CHIP_STARTUP_SOURCE chip_stm32f407ighx STARTUP_SOURCE)

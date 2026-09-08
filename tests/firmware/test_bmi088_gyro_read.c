@@ -32,7 +32,7 @@ static void test_read_uses_one_transaction_without_dummy(void) {
     arrange_initialized(&fake, &bus, &dev);
     const bmi088_fake_axes axes = {100, -200, 300};
     fake_bus_set_axes(&fake, axes);
-    bmi088_gyro_sample sample = {0, 0, 0};
+    bmi088_gyro_sample sample = {0};
 
     /* When: one sample is read. */
     const bmi088_gyro_status status = bmi088_gyro_read(&dev, &sample);
@@ -40,6 +40,9 @@ static void test_read_uses_one_transaction_without_dummy(void) {
     /* Then: exactly one transfer covering 0x00..0x07 plus the command byte
      * is issued, with no separate dummy read. */
     TEST_CHECK_EQ_INT(status, BMI088_GYRO_OK, "read must succeed");
+    TEST_CHECK_EQ_INT(sample.x_raw, axes.x, "read must retain raw x counts");
+    TEST_CHECK_EQ_INT(sample.y_raw, axes.y, "read must retain raw y counts");
+    TEST_CHECK_EQ_INT(sample.z_raw, axes.z, "read must retain raw z counts");
     TEST_CHECK_EQ_INT(fake.op_count, 1, "read must issue one operation");
     TEST_CHECK_EQ_INT(fake.ops[0].kind, FAKE_OP_READ, "read must be a read");
     TEST_CHECK_EQ_INT(fake.ops[0].addr, 0x00, "read must start at 0x00");
@@ -59,7 +62,11 @@ static void test_read_rejects_bad_chip_id_canary(void) {
     const bmi088_fake_axes axes = {7, 8, 9};
     fake_bus_set_axes(&fake, axes);
     fake.regs[0x00] = 0x00;
-    bmi088_gyro_sample sample = {11, 22, 33};
+    bmi088_gyro_sample sample = {
+        .x_mdps = 11,
+        .y_mdps = 22,
+        .z_mdps = 33,
+    };
 
     /* When: a sample is read. */
     const bmi088_gyro_status status = bmi088_gyro_read(&dev, &sample);
@@ -85,7 +92,7 @@ static void test_read_decodes_each_axis_lsb_first(void) {
     fake.regs[0x05] = 0x03;
     fake.regs[0x06] = 0x06;
     fake.regs[0x07] = 0x05;
-    bmi088_gyro_sample sample = {0, 0, 0};
+    bmi088_gyro_sample sample = {0};
 
     /* When: a sample is read. */
     const bmi088_gyro_status status = bmi088_gyro_read(&dev, &sample);
@@ -113,7 +120,7 @@ static void test_read_decodes_signed_extremes(void) {
         bmi088_gyro dev;
         arrange_initialized(&fake, &bus, &dev);
         fake_bus_set_axes(&fake, cases[i]);
-        bmi088_gyro_sample sample = {0, 0, 0};
+        bmi088_gyro_sample sample = {0};
 
         /* When: a sample is read. */
         const bmi088_gyro_status status = bmi088_gyro_read(&dev, &sample);
@@ -135,7 +142,11 @@ static void test_read_leaves_sample_untouched_on_bus_failure(void) {
     arrange_initialized(&fake, &bus, &dev);
     const bmi088_fake_axes axes = {1000, 2000, 3000};
     fake_bus_set_axes(&fake, axes);
-    bmi088_gyro_sample sample = {-5, -6, -7};
+    bmi088_gyro_sample sample = {
+        .x_mdps = -5,
+        .y_mdps = -6,
+        .z_mdps = -7,
+    };
 
     /* When: the bus fails during the read transaction. */
     fake.fail_at_transfer = 0;
@@ -158,7 +169,7 @@ static void test_read_never_writes_any_register(void) {
     bmi088_gyro_bus bus;
     bmi088_gyro dev;
     arrange_initialized(&fake, &bus, &dev);
-    bmi088_gyro_sample sample = {0, 0, 0};
+    bmi088_gyro_sample sample = {0};
 
     /* When: several samples are read. */
     for (int i = 0; i < 3; i++) {

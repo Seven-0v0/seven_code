@@ -21,6 +21,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ============================================
 set(TARGET_BOARD "f103" CACHE STRING "Firmware board target")
 set_property(CACHE TARGET_BOARD PROPERTY STRINGS f103 rm_dev_board_c)
+option(RM_DEV_BOARD_C_ENABLE_BMI088_HEATER
+       "Enable the experimental BMI088 heater on RoboMaster C board" OFF)
 
 if(TARGET_BOARD STREQUAL "f103")
     # Preserve the established BluePill build as the default target.

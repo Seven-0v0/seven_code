@@ -1,19 +1,22 @@
-/* 50 Hz BMI088 IMU observation task. See gyro_task.h for the contract. */
+/* 1 kHz BMI088 IMU observation task. See gyro_task.h for the contract. */
 #include "gyro_task.h"
 
 #include "bmi088_accel.h"
 #include "bmi088_gyro.h"
 #include "board.h"
+#include "heater_experiment.h"
 #include "imu_pipeline.h"
+#include "imu_pipeline_snapshot.h"
 
-#define IMU_PERIOD_MS (1000u / IMU_PIPELINE_SAMPLE_RATE_HZ) /* 50 Hz cadence. */
-#define TEMPERATURE_DIVIDER 50u /* 1 Hz temperature cadence at 50 Hz samples. */
+#define IMU_PERIOD_MS (1000u / IMU_PIPELINE_SAMPLE_RATE_HZ)
+#define TEMPERATURE_DIVIDER IMU_PIPELINE_SAMPLE_RATE_HZ
+#define ACCEL_DIVIDER (IMU_PIPELINE_SAMPLE_RATE_HZ / 100u)
 /* This task keeps the whole pipeline state plus a ~256-byte snapshot payload
  * on its stack, and runs float math that the CM4F port saves lazily. At -O0
  * the locals alone exceed the old 2x minimal (1 KiB) stack, so the task needs
- * 4x minimal. Overflow here trips vApplicationStackOverflowHook, which turns
+ * 8x minimal. Overflow here trips vApplicationStackOverflowHook, which turns
  * the LED off and parks the board. */
-#define GYRO_TASK_STACK ((uint16_t)(configMINIMAL_STACK_SIZE * 4))
+#define GYRO_TASK_STACK ((uint16_t)(configMINIMAL_STACK_SIZE * 8))
 #define GYRO_TASK_PRIORITY 1u
 
 volatile gyro_snapshot g_gyro_snapshot = {
@@ -32,6 +35,21 @@ volatile gyro_snapshot g_gyro_snapshot = {
         .last_temperature_status = GYRO_SNAPSHOT_ACCEL_INIT_PENDING,
     },
 };
+
+static float elapsed_seconds_from_ticks(TickType_t current,
+                                        TickType_t previous) {
+    return (float)(current - previous) / (float)configTICK_RATE_HZ;
+}
+
+static uint32_t skipped_cycles_from_ticks(TickType_t current,
+                                          TickType_t previous) {
+    const TickType_t elapsed_ticks = current - previous;
+    const TickType_t period_ticks = pdMS_TO_TICKS(IMU_PERIOD_MS);
+    if (period_ticks == 0u || elapsed_ticks <= period_ticks) {
+        return 0u;
+    }
+    return (uint32_t)(elapsed_ticks / period_ticks - 1u);
+}
 
 static void gyro_select(void *ctx) {
     (void)ctx;
@@ -81,49 +99,28 @@ static const bmi088_accel_bus accel_bus = {
 };
 
 static void publish_gyro_error(gyro_snapshot_payload *snapshot,
+                               const heater_experiment *heater,
                                bmi088_gyro_status status) {
     snapshot->read_error_count++;
     snapshot->last_read_status = status;
+    snapshot->gyro_sample_valid = false;
+    snapshot->x_mdps = 0;
+    snapshot->y_mdps = 0;
+    snapshot->z_mdps = 0;
+    snapshot->temperature_valid = false;
+    snapshot->sample_stationary = false;
+    heater_experiment_snapshot_apply(snapshot, heater);
     gyro_snapshot_publish(&g_gyro_snapshot, snapshot);
 }
 
-static void publish_pipeline_output(gyro_snapshot_payload *snapshot,
-                                     const imu_pipeline_output *output) {
-    snapshot->accel_x_g = output->acceleration_g.x_g;
-    snapshot->accel_y_g = output->acceleration_g.y_g;
-    snapshot->accel_z_g = output->acceleration_g.z_g;
-    snapshot->calibrated_gyro_bias_x_dps = output->gyro_bias_dps.x_dps;
-    snapshot->calibrated_gyro_bias_y_dps = output->gyro_bias_dps.y_dps;
-    snapshot->calibrated_gyro_bias_z_dps = output->gyro_bias_dps.z_dps;
-    snapshot->angular_velocity_x_dps = output->angular_velocity_dps.x_dps;
-    snapshot->angular_velocity_y_dps = output->angular_velocity_dps.y_dps;
-    snapshot->angular_velocity_z_dps = output->angular_velocity_dps.z_dps;
-    snapshot->angular_acceleration_x_dps2 =
-        output->angular_acceleration_dps2.x_dps2;
-    snapshot->angular_acceleration_y_dps2 =
-        output->angular_acceleration_dps2.y_dps2;
-    snapshot->angular_acceleration_z_dps2 =
-        output->angular_acceleration_dps2.z_dps2;
-    snapshot->quaternion_w = output->attitude.quaternion.w;
-    snapshot->quaternion_x = output->attitude.quaternion.x;
-    snapshot->quaternion_y = output->attitude.quaternion.y;
-    snapshot->quaternion_z = output->attitude.quaternion.z;
-    snapshot->roll_deg = output->attitude.euler_zyx_deg.roll_deg;
-    snapshot->pitch_deg = output->attitude.euler_zyx_deg.pitch_deg;
-    snapshot->yaw_deg = output->attitude.euler_zyx_deg.yaw_deg;
-    snapshot->calibration_accepted_samples =
-        output->calibration_accepted_samples;
-    snapshot->calibration_complete = output->calibration_complete;
-    snapshot->stationary_samples = output->drift.stationary_samples;
-    snapshot->stationary_duration_s = output->drift.stationary_duration_s;
-    snapshot->drift_mean_x_dps = output->drift.mean_dps.x_dps;
-    snapshot->drift_mean_y_dps = output->drift.mean_dps.y_dps;
-    snapshot->drift_mean_z_dps = output->drift.mean_dps.z_dps;
-    snapshot->drift_rms_x_dps = output->drift.rms_dps.x_dps;
-    snapshot->drift_rms_y_dps = output->drift.rms_dps.y_dps;
-    snapshot->drift_rms_z_dps = output->drift.rms_dps.z_dps;
-    snapshot->yaw_drift_deg = output->drift.yaw_drift_deg;
-    snapshot->yaw_drift_deg_per_min = output->drift.yaw_drift_deg_per_min;
+static void publish_unpaired_cycle_evidence(gyro_snapshot_payload *snapshot,
+                                            float cycle_dt_s,
+                                            uint32_t skipped_cycles) {
+    snapshot->sample_dt_s = cycle_dt_s;
+    snapshot->skipped_cycles = skipped_cycles;
+    snapshot->temperature_valid = false;
+    snapshot->sample_stationary = false;
+    snapshot->stack_high_water_words = uxTaskGetStackHighWaterMark(NULL);
 }
 
 static void gyro_task(void *context) {
@@ -132,7 +129,11 @@ static void gyro_task(void *context) {
     bmi088_gyro gyro_device;
     bmi088_accel accel_device;
     imu_pipeline pipeline;
+    heater_experiment heater;
     imu_pipeline_init(&pipeline);
+    heater_experiment_init(&heater);
+    imu_pipeline_set_calibration_enabled(
+        &pipeline, heater_experiment_calibration_ready(&heater));
 
     const bmi088_gyro_status gyro_init_status =
         bmi088_gyro_init(&gyro_device, &gyro_bus);
@@ -144,67 +145,91 @@ static void gyro_task(void *context) {
     snapshot.last_read_status = BMI088_GYRO_OK;
     snapshot.last_accel_read_status = GYRO_SNAPSHOT_ACCEL_INIT_PENDING;
     snapshot.last_temperature_status = GYRO_SNAPSHOT_ACCEL_INIT_PENDING;
+    heater_experiment_snapshot_apply(&snapshot, &heater);
     gyro_snapshot_publish(&g_gyro_snapshot, &snapshot);
 
-    if (gyro_init_status != BMI088_GYRO_OK) {
+    if (gyro_init_status != BMI088_GYRO_OK ||
+        accel_init_status != BMI088_ACCEL_OK) {
+        heater_experiment_sensor_failure(&heater);
+        heater_experiment_snapshot_apply(&snapshot, &heater);
+        gyro_snapshot_publish(&g_gyro_snapshot, &snapshot);
         for (;;) {
             vTaskDelay(portMAX_DELAY);
         }
     }
 
-    const bool accel_ready = accel_init_status == BMI088_ACCEL_OK;
     uint32_t sequence = 0u;
+    bmi088_accel_sample accel_sample = {0};
+    bool acceleration_valid = false;
     TickType_t wake_time = xTaskGetTickCount();
+    TickType_t last_cycle_tick = wake_time;
     for (;;) {
         vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(IMU_PERIOD_MS));
-
+        const TickType_t cycle_tick = xTaskGetTickCount();
+        const float cycle_dt_s =
+            elapsed_seconds_from_ticks(cycle_tick, last_cycle_tick);
+        const uint32_t skipped_cycles =
+            skipped_cycles_from_ticks(cycle_tick, last_cycle_tick);
+        last_cycle_tick = cycle_tick;
         bmi088_gyro_sample gyro_sample = {0};
         const bmi088_gyro_status gyro_status =
             bmi088_gyro_read(&gyro_device, &gyro_sample);
         if (gyro_status != BMI088_GYRO_OK) {
-            publish_gyro_error(&snapshot, gyro_status);
+            heater_experiment_sensor_failure(&heater);
+            const imu_pipeline_output output =
+                imu_pipeline_advance_time(&pipeline, cycle_dt_s);
+            imu_pipeline_snapshot_apply(&snapshot, &output);
+            publish_unpaired_cycle_evidence(&snapshot, cycle_dt_s,
+                                            skipped_cycles);
+            publish_gyro_error(&snapshot, &heater, gyro_status);
             continue;
         }
 
         sequence++;
         snapshot.sequence = sequence;
         snapshot.last_read_status = BMI088_GYRO_OK;
+        snapshot.gyro_sample_valid = true;
         snapshot.x_mdps = gyro_sample.x_mdps;
         snapshot.y_mdps = gyro_sample.y_mdps;
         snapshot.z_mdps = gyro_sample.z_mdps;
 
-        if (!accel_ready) {
-            gyro_snapshot_publish(&g_gyro_snapshot, &snapshot);
-            continue;
-        }
-
-        bmi088_accel_sample accel_sample = {0};
-        const bmi088_accel_status accel_status =
-            bmi088_accel_read(&accel_device, &accel_sample);
-        if (accel_status != BMI088_ACCEL_OK) {
-            snapshot.accel_read_error_count++;
+        if (sequence == 1u || (sequence % ACCEL_DIVIDER) == 0u) {
+            const bmi088_accel_status accel_status =
+                bmi088_accel_read(&accel_device, &accel_sample);
             snapshot.last_accel_read_status = accel_status;
-            gyro_snapshot_publish(&g_gyro_snapshot, &snapshot);
-            continue;
+            acceleration_valid = accel_status == BMI088_ACCEL_OK;
+            if (acceleration_valid) {
+                snapshot.accel_x_ug = accel_sample.x_ug;
+                snapshot.accel_y_ug = accel_sample.y_ug;
+                snapshot.accel_z_ug = accel_sample.z_ug;
+            } else {
+                snapshot.accel_read_error_count++;
+                heater_experiment_sensor_failure(&heater);
+            }
         }
 
-        snapshot.last_accel_read_status = BMI088_ACCEL_OK;
-        snapshot.accel_x_ug = accel_sample.x_ug;
-        snapshot.accel_y_ug = accel_sample.y_ug;
-        snapshot.accel_z_ug = accel_sample.z_ug;
-        const imu_pipeline_output output = imu_pipeline_update(
-            &pipeline,
-            (imu_gyro_dps){
-                .x_dps = (float)gyro_sample.x_mdps / 1000.0f,
-                .y_dps = (float)gyro_sample.y_mdps / 1000.0f,
-                .z_dps = (float)gyro_sample.z_mdps / 1000.0f,
+        imu_pipeline_input input = {
+            .gyro_raw = {
+                .x = gyro_sample.x_raw,
+                .y = gyro_sample.y_raw,
+                .z = gyro_sample.z_raw,
             },
-            (imu_acceleration_g){
+            .gyro_dps = {
+                .x_dps = bmi088_gyro_raw_to_dps(gyro_sample.x_raw),
+                .y_dps = bmi088_gyro_raw_to_dps(gyro_sample.y_raw),
+                .z_dps = bmi088_gyro_raw_to_dps(gyro_sample.z_raw),
+            },
+            .acceleration_g = {
                 .x_g = (float)accel_sample.x_ug / 1000000.0f,
                 .y_g = (float)accel_sample.y_ug / 1000000.0f,
                 .z_g = (float)accel_sample.z_ug / 1000000.0f,
-            });
-        publish_pipeline_output(&snapshot, &output);
+            },
+            .dt_s = cycle_dt_s,
+            .skipped_cycles = skipped_cycles,
+            .gyro_raw_valid = true,
+            .acceleration_valid = acceleration_valid,
+        };
+        heater_control_input heater_input = {.dt_s = cycle_dt_s};
 
         if ((sequence % TEMPERATURE_DIVIDER) == 0u) {
             int32_t temperature_mdeg_c = snapshot.temperature_mdeg_c;
@@ -215,10 +240,29 @@ static void gyro_task(void *context) {
             if (temperature_status == BMI088_ACCEL_OK) {
                 snapshot.temperature_mdeg_c = temperature_mdeg_c;
                 snapshot.temperature_read_count++;
+                input.temperature_sampled = true;
+                input.temperature_sample_valid = true;
+                input.temperature_degc = (float)temperature_mdeg_c / 1000.0f;
+                heater_input.temperature_sampled = true;
+                heater_input.temperature_valid = true;
+                heater_input.temperature_degc = input.temperature_degc;
             } else {
                 snapshot.temperature_read_error_count++;
+                input.temperature_sampled = true;
+                input.temperature_sample_valid = false;
+                heater_input.temperature_sampled = true;
+                heater_input.temperature_valid = false;
             }
         }
+        heater_experiment_step(&heater, &heater_input);
+        if (heater.output.stability_just_reached) {
+            imu_pipeline_set_calibration_enabled(&pipeline, true);
+        }
+        const imu_pipeline_output output =
+            imu_pipeline_update_timed(&pipeline, &input);
+        imu_pipeline_snapshot_apply(&snapshot, &output);
+        heater_experiment_snapshot_apply(&snapshot, &heater);
+        snapshot.stack_high_water_words = uxTaskGetStackHighWaterMark(NULL);
         gyro_snapshot_publish(&g_gyro_snapshot, &snapshot);
     }
 }

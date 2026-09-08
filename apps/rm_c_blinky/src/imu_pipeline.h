@@ -1,4 +1,3 @@
-/* Fixed-rate, sensor-frame IMU processing used by the C-board task. */
 #ifndef APPS_RM_C_BLINKY_IMU_PIPELINE_H
 #define APPS_RM_C_BLINKY_IMU_PIPELINE_H
 
@@ -7,37 +6,81 @@
 
 #include "imu_angular_acceleration.h"
 #include "imu_attitude.h"
-#include "imu_calibration.h"
 #include "imu_drift.h"
+#include "imu_stationary_experiment.h"
+#include "imu_temperature_gate.h"
 
-#define IMU_PIPELINE_SAMPLE_PERIOD_S 0.02f
-#define IMU_PIPELINE_SAMPLE_RATE_HZ 50u
-#define IMU_PIPELINE_CALIBRATION_SAMPLES 100u
+#define IMU_PIPELINE_SAMPLE_PERIOD_S 0.001f
+#define IMU_PIPELINE_SAMPLE_RATE_HZ 1000u
+#define IMU_PIPELINE_SETTLING_DURATION_S 0.0f
+#define IMU_PIPELINE_CALIBRATION_DURATION_S 2.0f
+#define IMU_PIPELINE_HOLD_OUT_DURATION_S 600.0f
+
+typedef struct {
+    imu_gyro_raw_counts gyro_raw;
+    imu_gyro_dps gyro_dps;
+    imu_acceleration_g acceleration_g;
+    float dt_s;
+    uint32_t skipped_cycles;
+    bool gyro_raw_valid;
+    bool acceleration_valid;
+    bool temperature_sampled;
+    bool temperature_sample_valid;
+    float temperature_degc;
+} imu_pipeline_input;
 
 typedef struct {
     imu_gyro_dps gyro_bias_dps;
+    imu_gyro_dps hold_out_bias_dps;
     imu_gyro_dps angular_velocity_dps;
     imu_acceleration_g acceleration_g;
     imu_angular_acceleration_dps2 angular_acceleration_dps2;
     imu_attitude_output attitude;
     imu_drift_statistics drift;
+    imu_drift_statistics calibrated_drift;
+    imu_stationary_experiment_phase experiment_phase;
+    uint32_t settling_accepted_samples;
     uint32_t calibration_accepted_samples;
+    uint32_t calibration_reset_count;
+    uint32_t hold_out_accepted_samples;
+    uint32_t skipped_cycles;
+    float experiment_phase_elapsed_s;
+    float experiment_phase_required_s;
+    float hold_out_wall_duration_s;
+    float hold_out_accepted_duration_s;
+    float hold_out_unobserved_duration_s;
+    float sample_dt_s;
+    float temperature_degc;
+    float temperature_slope_degc_per_s;
     bool calibration_complete;
+    bool bias_frozen;
+    bool hold_out_valid;
+    bool temperature_valid;
+    bool sample_stationary;
 } imu_pipeline_output;
 
 typedef struct {
-    imu_gyro_calibration calibration;
+    imu_stationary_experiment experiment;
     imu_angular_acceleration_filter angular_acceleration;
     imu_attitude attitude;
-    imu_gyro_drift drift;
+    imu_gyro_drift hold_out_raw_drift;
+    imu_gyro_drift hold_out_calibrated_drift;
+    imu_temperature_gate temperature_gate;
+    bool calibration_enabled;
 } imu_pipeline;
 
 void imu_pipeline_init(imu_pipeline *pipeline);
 
-/* Inputs are already confirmed by both sensor drivers and remain in the
- * unchanged BMI088 sensor frame. Rates are dps and acceleration is g. */
-imu_pipeline_output imu_pipeline_update(imu_pipeline *pipeline,
-                                        imu_gyro_dps gyro_dps,
-                                        imu_acceleration_g acceleration_g);
+void imu_pipeline_init_with_experiment_config(
+    imu_pipeline *pipeline,
+    const imu_stationary_experiment_config *experiment_config);
 
-#endif /* APPS_RM_C_BLINKY_IMU_PIPELINE_H */
+void imu_pipeline_set_calibration_enabled(imu_pipeline *pipeline, bool enabled);
+
+imu_pipeline_output imu_pipeline_update_timed(imu_pipeline *pipeline,
+                                              const imu_pipeline_input *input);
+
+imu_pipeline_output imu_pipeline_advance_time(imu_pipeline *pipeline,
+                                              float dt_s);
+
+#endif
