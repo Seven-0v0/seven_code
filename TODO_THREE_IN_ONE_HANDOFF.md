@@ -1,43 +1,59 @@
-# Three-in-One RoboMaster Firmware Handoff
+# Three-in-One RoboMaster Firmware Context
 
-## Core Goal
+## Why This Document Exists
 
-Build one layered repository containing three independently built and flashed firmware targets:
+This file gives a future conversation enough context to understand the project before discussing priorities with the user. It is not an execution plan, a continuation command, or an instruction to start a predetermined task.
+
+The user and the next agent should decide together what matters next. The durable content here is the product vision, source-of-truth relationships, architecture, verified baseline, safety boundaries, and unresolved capability areas.
+
+## Product Vision
+
+The long-term goal is one layered repository containing three independently built and flashed firmware products:
 
 1. Official RoboMaster Development Board C reference and hardware-validation firmware.
 2. Team gimbal firmware for STM32F405RG.
 3. Team chassis firmware for STM32F405RG.
 
-The targets must share the same BSP conventions, portable drivers, middleware, protocols, tests, build/flash tools, logging, and validation infrastructure. "Three-in-one" means one repository and one common technical foundation, not one MCU image.
+"Three-in-one" means one repository and one common technical foundation, not one firmware image and not one MCU running all responsibilities.
 
-## Source Repositories
+The three products should share conventions and reusable implementation where the hardware and behavior genuinely overlap:
 
-### Team firmware behavior sources
+- BSP and chip-description conventions.
+- Board support boundaries.
+- Portable device drivers.
+- FreeRTOS and shared middleware.
+- Typed communication protocols.
+- Host-side tests and golden fixtures.
+- Build, flash, logging, and hardware-validation infrastructure.
+- Physical-safety gates and evidence standards.
+
+The intended result is not a generic framework detached from the robot. It is a common foundation that preserves the real behavior of the official board and the team's deployed gimbal and chassis firmware.
+
+## Behavioral and Reference Sources
+
+### Team firmware
 
 - Gimbal: https://github.com/zy-2006-08/Gimbal_26hero_CH010_20260725
 - Chassis: https://github.com/zy-2006-08/Chassisl_26_SHANGTAIJIE
 
-The team repositories are the behavioral source of truth for real-vehicle details, including PID parameters, encoder zeros, motor directions, mechanical limits, timing, CAN rates, mode transitions, deploy behavior, leg control, and HUD behavior.
+These repositories are the behavioral source of truth for the actual robot. Important facts include PID values, encoder zeros, motor directions, mechanical limits, timing, CAN rates, mode transitions, deploy behavior, leg control, vision behavior, and referee HUD behavior.
 
-### Official reference sources
+The objective is to preserve those facts while improving boundaries and testability. Their monolithic `my_main.cpp` files are evidence to interpret, not files to copy wholesale.
+
+### Official RoboMaster references
 
 - https://github.com/RoboMaster/Development-Board-C-Examples
 - https://github.com/RoboMaster/RoboRTS-Firmware
 - https://github.com/RoboMaster/referee_serial_port_protocol
 - https://github.com/RoboMaster/RoboRTS-Base
 
-Temporary local clones created during the previous session:
+Official sources establish board wiring, chip behavior, peripheral conventions, referee framing, and reference implementations. They do not override team-specific vehicle behavior where the team firmware is the deployed source of truth.
 
-- `/var/folders/nd/mjvg9t7x0_79mx_36r4m9qtc0000gn/T/opencode/rm-dev-c`
-- `/var/folders/nd/mjvg9t7x0_79mx_36r4m9qtc0000gn/T/opencode/rm-firmware`
-- `/var/folders/nd/mjvg9t7x0_79mx_36r4m9qtc0000gn/T/opencode/rm-referee`
-- `/var/folders/nd/mjvg9t7x0_79mx_36r4m9qtc0000gn/T/opencode/rm-base`
+`dji-sdk/RoboMaster-SDK` is a host-side EP/Tello SDK, not the embedded competition-firmware base. Its protocol-layering ideas may be useful, but it is not a source for MCU behavior.
 
-`dji-sdk/RoboMaster-SDK` is an EP/Tello host-side Python SDK, not the embedded competition-firmware base. Only its Action, subscription, and protocol-layering ideas may be useful.
+## Architecture
 
-## Architecture Decision
-
-Keep the existing dependency direction:
+The dependency direction is:
 
 ```text
 app -> board -> chip -> bsp
@@ -45,14 +61,24 @@ app -> drivers
 app -> middleware
 ```
 
-Target shape:
+Responsibilities:
+
+- `apps/`: product behavior, task orchestration, and product state machines.
+- `boards/`: physical pin assignments, oscillator facts, board clocks, and board-specific FreeRTOS configuration.
+- `cmake/chips/`: CPU ABI, device macros, startup source, linker script, and chip-level build facts.
+- `bsp/`: vendor CMSIS/HAL/LL implementation.
+- `drivers/`: portable external-device and bus-independent protocol logic.
+- `middleware/`: reusable control, algorithm, referee, vision, and robot-link behavior.
+- `tests/firmware/`: host-native tests for pure firmware logic, separate from the ARM cross build.
+
+Expected product shape:
 
 ```text
 apps/
-  rm_c_blinky/          # current safe C-board baseline
-  standard_robot_c/     # future official reference integration
-  gimbal_f405/          # future team gimbal image
-  chassis_f405/         # future team chassis image
+  rm_c_blinky/          # safe C-board hardware baseline
+  standard_robot_c/     # possible official reference integration
+  gimbal_f405/          # team gimbal image
+  chassis_f405/         # team chassis image
 
 boards/
   rm_dev_board_c/
@@ -81,185 +107,116 @@ middleware/
   robot_link/
 ```
 
-Do not copy either monolithic team `my_main.cpp` directly. First preserve behavior, timing, packet bytes, signs, zeros, limits, and parameters; then extract one module at a time.
+New abstractions should represent a demonstrated shared need. Compatibility layers, fallbacks, and versioning should not be added speculatively.
 
-## Completed: Phase 1 C-Board Baseline
+## Current Verified Baseline
 
-The repository now supports the official RoboMaster C board as a selectable target.
+The repository baseline through commit `2ce8212` includes:
 
-Implemented:
-
-- STM32F407IGHx Cortex-M4F chip target.
-- VFPv4-D16 hard-float ABI.
-- 1 MiB Flash, 128 KiB SRAM, and 64 KiB CCM memory map.
+- Selectable F103 and RoboMaster C-board build targets.
+- STM32F407IGHx Cortex-M4F target with hard-float ABI.
+- 1 MiB Flash, 128 KiB SRAM, and 64 KiB CCM memory description.
 - Official C-board 12 MHz HSE to 168 MHz clock tree.
 - FreeRTOS V11.1.0 using `GCC_ARM_CM4F`.
-- Safe C-board diagnostic app using only:
-  - PH10 LED as a normal GPIO.
-  - PA9 USART1 TX.
-  - Internal TIM6 as the HAL 1 kHz timebase.
-- FreeRTOS exclusively owns SysTick.
-- Startup assembly is linked only once into the final executable.
-- HSE frequency is owned by `boards/rm_dev_board_c/board.cmake`, not the chip layer.
-- Stack-overflow and allocation-failure hooks stop safely.
-- Build/flash script supports `f103` and `rm_dev_board_c` and fails closed on invalid arguments.
-- J-Link script performs `verifybin` before reset/run.
-- README documents C-board build and flash commands.
+- TIM6 as the HAL 1 kHz timebase while FreeRTOS exclusively owns SysTick.
+- PH10 LED heartbeat. The PA9 USART1 TX diagnostic path was implemented but is now removed/superseded: it was never verified over a physical serial connection (see below), and live observation of the C-board now goes exclusively through Ozone/J-Link against `g_gyro_snapshot`. A portable, repo-committed Ozone project lives at `apps/rm_c_blinky/ozone/rm_c_blinky.jdebug`.
+- J-Link build, flash, and `verifybin` workflow.
+- A standalone host CMake/CTest firmware test harness.
+- A portable gyro-only BMI088 driver with an injected bus interface.
+- C-board SPI1 integration for the BMI088 gyro.
+- Fixed-point integer formatting without float `printf`.
+- A generation-protected J-Link-readable gyro snapshot.
 
-No CAN, motor, PWM actuator, friction wheel, laser, buzzer, referee, or shooting path is initialized by the C-board diagnostic image. The BMI088 gyroscope has since been added on top of this baseline; see "Completed: Host Test Harness and BMI088 Gyro Bring-Up" below for its evidence. The accelerometer half of the same sensor is still not accessed.
+No RTT debug component is part of this baseline. RTT was explored and deliberately removed before commit `2ce8212`.
 
-### Hardware evidence
+## BMI088 Gyroscope State
 
-J-Link and wiring:
+The gyro half of the BMI088 path is implemented and tested.
 
-- J-Link S/N: `602712225`
-- VTref: approximately 3.28 V
-- SWD connected successfully.
-- DBGMCU ID: `0x413`
-- Cortex-M4/FPU detected.
+### Hardware facts
 
-Final C-board image:
+- SPI1 SCK: PB3.
+- SPI1 MISO: PB4.
+- SPI1 MOSI: PA7.
+- Gyro chip select: PB0, active low.
+- Accelerometer chip select: PA4, held high.
+- SPI mode 3, software NSS, conservative prescaler.
+- Gyro chip ID: `0x0F`.
+- Gyro range: ±2000 dps.
+- Gyro bandwidth/ODR register: `0x82`, representing 1000 Hz ODR / 116 Hz bandwidth.
 
-- Path: `build-rm_dev_board_c/apps/rm_c_blinky/rm_c_blinky.bin`
-- Size: 14,464 bytes
-- SHA-256: `77a82e0fea66187f1991e3cc0876b78a311fe67630785ecb794cd7bca64e802f`
+### Software behavior
 
-Final HIL result:
+- The portable driver contains no STM32 HAL, board, or FreeRTOS dependency.
+- Initialization performs chip-ID checks, reset, delay, configuration writes, and readback verification.
+- Samples are read in one burst with the chip ID carried as a framing canary.
+- Raw signed counts are converted to integer milli-degrees per second.
+- The C-board app publishes a coherent `g_gyro_snapshot`. It previously also produced a USART1 telemetry path; that path is removed/superseded and no longer the documented way to observe this data (see Ozone/J-Link note below).
+- The accelerometer half of the BMI088 is not accessed.
 
-- Flash program and verify: PASS
-- `g_blink_count`: 9 -> 13 over 2 seconds
-- CFSR: `0x00000000`
-- RCC_CFGR: `0x0000940A`
-- CPU: Thread mode using PSP
-- Blink task period: 500 ms
+### Verification evidence
 
-Five review lanes passed with no blockers: goal compliance, hands-on QA, code quality, physical/flash safety, and official-source context.
+- Host firmware tests: 8/8 passing.
+- F103 regression build: passing.
+- C-board cross build: passing.
+- Flash program and verification: passing.
+- J-Link S/N: `602712225`.
+- Target voltage: approximately 3.28 V.
+- Gyro initialization status: success.
+- Runtime read-error count: zero during measured runs.
+- LED heartbeat continues while the gyro task runs.
+- CFSR and HFSR remained zero during measured runs.
+- A haltless J-Link read demonstrated why the generation protocol is necessary: interleaved reads are rejected, while stable even generations are accepted.
 
-## Completed: Host Test Harness and BMI088 Gyro Bring-Up
+The exact physical mapping between board rotation and reported gyro axis/sign has not been established. The USART1 path was implemented, but the available J-Link CDC was never wired to PA9, so no session ever captured the UART stream over a physical serial connection. That path is now removed/superseded: live observation of `g_gyro_snapshot` (sequence, init_status, read_error_count, last_read_status, x/y/z) goes exclusively through Ozone/J-Link via the committed project file `apps/rm_c_blinky/ozone/rm_c_blinky.jdebug`, which watches those fields directly and requires no serial hardware.
 
-This is the first slice of the reusable `drivers/imu/bmi088` driver and the native host test infrastructure both live on top of the Phase 1 C-board baseline. The intent is a driver that both the C board and, later, the team gimbal/chassis F405 boards can share; this session proved out the gyro half of that driver on real hardware.
+## Test and Evidence Philosophy
 
-Implemented:
+Pure logic should be testable with the host compiler. The current harness covers:
 
-- `tests/firmware/`: standalone CMake + CTest project built with the host compiler, independent of the ARM cross toolchain. Runnable with `bash tools/run_host_tests.sh`.
-- Given/When/Then unit tests for signed/unsigned integer formatting, coherent snapshot publication, and the BMI088 gyro driver's init, read, scale, and init-error paths, using a fake SPI bus (no hardware required to run these).
-- `drivers/imu/bmi088/bmi088_gyro.[ch]`: portable gyro-only driver (WHO_AM_I check, range/bandwidth/power config, one-transaction burst read, raw-to-mdps conversion). Accelerometer register access is not implemented.
-- `boards/rm_dev_board_c/src/board_imu_spi.c`: SPI1 bus init and gyro chip-select GPIO control for the C board. PA4 (accelerometer CS) is driven high once and has no runtime accessor, so the accelerometer stays deselected for the life of the program.
-- `apps/rm_c_blinky/src/gyro_task.c`: FreeRTOS task that brings up the gyro, then publishes a generation-protected `g_gyro_snapshot` and emits one pure-numeric `x,y,z` line per sample over USART1 at 50 Hz. Sequence and timestamp retain the full `uint32_t` range in the snapshot.
+- BMI088 initialization sequencing and configuration values.
+- Bus failures, wrong chip IDs, and register-readback failures.
+- Burst framing and signed little-endian decoding.
+- Scale boundaries and sign behavior.
+- Signed and unsigned integer formatting boundaries.
+- Coherent snapshot publication and generation wrap.
 
-Not implemented: accelerometer access of any kind, AHRS/sensor-fusion, calibration, CAN, motor, PWM, ADC, DMA, EXTI, or referee/vision paths.
+Tests should use real value objects or in-memory fakes rather than broad mocks. Protocol work should eventually include byte-exact fixtures from official or deployed implementations.
 
-### Host test evidence
+Build success alone is not hardware proof. Hardware claims should identify the binary, flash verification, target voltage, runtime counters, fault registers, timing, and the physical action that produced the observation.
 
-- `bash tools/run_host_tests.sh`: 8/8 tests pass.
+## Safety Boundaries
 
-### Firmware build evidence
+The current C-board image is intentionally zero-actuation. It does not initialize CAN motor output, PWM actuators, friction wheels, feeder, laser, buzzer, shooter, or leg mechanisms.
 
-- F103 (`blinky_f103`) cross build: clean.
-- C board (`rm_dev_board_c`) cross build: clean.
-- Final `.bin`: `build-rm_dev_board_c/apps/rm_c_blinky/rm_c_blinky.bin`
-- Size: 20260 bytes
-- SHA-256: `948a913ac05e9d53d7b530f09c9ba0a57e67175a7c893e4ebfa45f4294ccf4dd`
-- Flash program and verify: PASS
+The larger project assumes these safety properties before motion is allowed:
 
-### J-Link session evidence
+- A compile-time actuation gate defaults to disabled.
+- A runtime armed state defaults to false.
+- Closed gates force zero current/torque at the transport boundary.
+- RC loss and stale inter-board data force a safe state.
+- Control-task health participates in watchdog and safe-output behavior.
+- Dry-run control computation can be observed while transmitted actuation remains zero.
+- Motion requires explicit human approval, mechanically safe conditions, and current-limited power.
 
-- J-Link S/N: `602712225`
-- VTref: ≈ 3.28 V
+Physical bring-up evidence should grow from isolated, unloaded mechanisms toward integrated motion. Shooting mechanisms and balance behavior carry the highest consequence and belong behind the strongest evidence gates.
 
-### BMI088 gyro evidence (from `g_gyro_snapshot` read via J-Link RAM inspection)
+## Scheduling and Concurrency Context
 
-- `init_status`: `0` (success)
-- `read_error_count`: `0`
-- Snapshot reader contract: accept only when generation is equal before/after the payload read and even; retry on odd or changed generation.
-- `g_blink_count` advanced by 10 over 5 s, matching the 500 ms LED task period (task scheduling healthy).
-- CFSR / HFSR: `0` (no fault).
+The expected high-rate behavior is hybrid rather than "everything is a normal RTOS task":
 
-USART1 is designed to emit a continuous pure-numeric `x,y,z` stream (mdps) at a nominal 50 Hz. The J-Link CDC serial port on hand is not wired to PA9, so this bring-up was verified through the J-Link RAM snapshot rather than captured UART bytes. Capturing the actual UART stream with a wired USB-serial adapter remains open.
+- The team gimbal's existing 2 kHz control timing is initially a hardware-timer responsibility.
+- The chassis's existing 500 Hz leg-control timing is initially a hardware-timer responsibility.
+- CAN ISRs receive, timestamp, and publish into bounded storage; they do not run control logic.
+- Vision, referee, HUD, logs, and lower-rate state machines are natural FreeRTOS tasks.
+- Lower-rate periodic work can use `vTaskDelayUntil()`.
+- Moving high-rate loops into normal tasks requires measured jitter and demonstrated behavioral equivalence.
 
-Explicitly not verified: the mapping between physical board rotation (which axis, which direction) and the sign/axis of the reported x/y/z values. The numbers above are rest-state noise only. Correlating physical rotation with axis and sign is a required next gate before any downstream consumer (AHRS, control loop) can trust axis semantics.
+Any ISR calling a FreeRTOS `FromISR` API must use an NVIC priority compatible with `configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`.
 
-## Current Worktree State
+## Communication Context
 
-Phase 1 was committed as `1fa1509`. The new host test harness and BMI088 gyro bring-up are currently uncommitted. Do not reset, checkout, or overwrite them. Run `git status --short` before continuing to see the exact current diff.
-
-The C board currently runs `rm_c_blinky`, which now also brings up SPI1 and reports live BMI088 gyroscope data over USART1, not the original `user_program.bin`.
-
-Before continuing, run:
-
-```bash
-git status --short
-bash tools/build_and_flash.sh --no-flash
-bash tools/build_and_flash.sh --target rm_dev_board_c --no-flash
-bash tools/run_host_tests.sh
-```
-
-Do not commit unless explicitly requested.
-
-## Next Phase: Host-Tested Common Core
-
-### P0: Add native C test infrastructure
-
-- [x] Add `tests/firmware/` using native host GCC and CTest. Run with `bash tools/run_host_tests.sh`; 8/8 pass.
-- [x] Keep host tests separate from the ARM cross-toolchain build. `tests/firmware/` is its own CMake project built with the host compiler into `build-host-tests/`.
-- [x] Require Given/When/Then test structure. Applied in `test_harness_meta.c`, `test_fmt_i32.c`, and the four `test_bmi088_gyro_*.c` files.
-- [ ] Add byte-exact golden fixtures captured from official/team implementations. Not yet needed: current tests cover `fmt_i32` and the BMI088 gyro driver against a fake bus, not protocol byte fixtures. Still open for CRC/DBUS/DJI/referee ports below.
-
-### P0: Port pure modules test-first
-
-- [ ] CRC8 and CRC16 using official referee-protocol vectors.
-- [ ] FIFO behavior, wraparound, full, and empty cases.
-- [ ] PID update, limit, integral, reset, and golden step response.
-- [ ] Ramp, constrain, deadband, and easing functions.
-- [ ] AHRS helper math and quaternion-to-Euler conversion.
-- [ ] DBUS 18-byte frame parsing using known frames.
-- [ ] DJI motor feedback decode and four-current command encode.
-- [ ] Referee frame parser with valid, partial, corrupted, and CRC-failure cases.
-
-Do not port official bundled HAL, CMSIS, FreeRTOS, CubeMX generated projects, or CMSIS-RTOS v1 wrappers.
-
-## C-Board Zero-Actuation Bring-Up
-
-Complete these in order and save evidence at every gate:
-
-- [x] SPI and BMI088 WHO_AM_I. Verified via J-Link RAM snapshot: `init_status = 0`. See "Completed: Host Test Harness and BMI088 Gyro Bring-Up" above.
-- [x] BMI088 raw gyro data. Live 50 Hz snapshots confirmed via J-Link; UART byte capture still open (CDC not wired to PA9 this session).
-- [ ] BMI088 raw accelerometer data. Not started; PA4 (accel CS) is held high and unused.
-- [ ] Physical rotation axis/sign mapping for the gyro. Not verified; rest-state snapshots only. Required before any AHRS/control consumer trusts axis semantics.
-- [ ] INS/AHRS output; correlate physical board rotation with timestamped logs.
-- [ ] DBUS channels, switches, mouse, and keyboard.
-- [ ] CAN internal loopback.
-- [ ] CAN motor feedback receive only.
-- [ ] Zero-current CAN send verification.
-- [ ] Referee UART frame parsing.
-- [ ] Flash calibration write/reboot/read consistency.
-- [ ] Device detect/watchdog table.
-
-Use:
-
-- `tools/build_and_flash.sh`
-- `tools/serial_capture.py`
-- Camera and Aux-Eye for physical/log correlation
-- J-Link memory reads for counters and fault registers
-
-## Shared Module TODO
-
-- [ ] `drivers/can`: HAL-independent bus API and ISR-to-buffer boundary.
-- [ ] `drivers/motor/dji`: byte-exact DJI frame codecs.
-- [ ] `drivers/motor/lk6010`: LK protocol and feedback.
-- [ ] `drivers/motor/dm`: DM command/feedback codec.
-- [ ] `drivers/imu/bmi088`: C-board and team-gimbal reusable driver. Gyro path implemented and hardware-verified; accelerometer path remains open, so the shared driver is not complete.
-- [ ] `drivers/imu/hipnuc`: CH010/HiPNUC parser and continuous yaw.
-- [ ] `drivers/imu/jy61p`: chassis IMU driver.
-- [ ] `drivers/remote/dbus`: transport-independent DBUS parser.
-- [ ] `middleware/controller`: PID, `Gimbal_Zhou`, and `LegCascade`.
-- [ ] `middleware/referee`: CRC, parser, state model, and UI packet encoding.
-- [ ] `middleware/vision`: MiniPC/CT frame codecs.
-- [ ] `middleware/robot_link`: the only definition of inter-board CAN frames.
-
-## Inter-Board Protocol TODO
-
-Implement typed `pack` and `unpack` functions. Application code must not manipulate raw byte offsets directly.
+Known inter-board CAN meanings from the team firmware include:
 
 ```text
 0x010 gimbal -> chassis: RC sticks
@@ -267,106 +224,43 @@ Implement typed `pack` and `unpack` functions. Application code must not manipul
 0x012 chassis -> gimbal: chassis status, shoot speed, capacitor
 0x013 gimbal -> chassis: IMU yaw/pitch, shooting, auto-aim
 0x014 gimbal -> chassis: vision pitch/yaw/distance
-0x120 chassis/power board: battery/capacitor/load status
+0x120 chassis/power board: battery, capacitor, and load status
 ```
 
-- [ ] Add compile-time size checks.
-- [ ] Add byte-exact golden tests.
-- [ ] Add timeout and stale-data semantics.
-- [ ] Add protocol versioning only if a real compatibility need is identified.
-- [ ] Keep internal CAN `0x120` distinct from referee UART command ID `0x0120`.
+The long-term architecture expects typed pack/unpack functions, compile-time size checks, byte-exact tests, and explicit stale-data semantics. Application code should not manipulate protocol byte offsets directly. Internal CAN ID `0x120` is unrelated to referee UART command ID `0x0120`.
 
-## Team STM32F405 Targets
+## Capability Areas Still Open
 
-### Shared chip target
+The following are unresolved project areas, not an ordered task list:
 
-- [ ] Add `cmake/chips/stm32f405rg.cmake`.
-- [ ] Cortex-M4F, VFPv4-D16, hard-float.
-- [ ] 1 MiB Flash, 128 KiB SRAM, 64 KiB CCM.
-- [ ] Board-specific 25 MHz HSE, 168 MHz system clock.
-- [ ] Correct startup and linker script.
+- BMI088 accelerometer, temperature behavior, calibration, and board-frame transform.
+- INS/AHRS and physical correlation between board motion and timestamped sensor output.
+- DBUS parsing and remote-loss semantics.
+- CAN loopback, receive-only feedback, zero-current transmission, utilization, errors, and stale data.
+- DJI, LK6010, and DM motor codecs and device abstractions.
+- Shared PID, ramp, constrain, deadband, AHRS math, and controller behavior.
+- Referee protocol CRC, framing, state, and HUD encoding.
+- Vision transport and MiniPC framing.
+- Typed robot-link messages between gimbal, chassis, and power systems.
+- STM32F405RG chip and board targets for the team gimbal and chassis.
+- Preservation and modularization of deployed gimbal modes, chassis modes, leg control, shooting, vision, and HUD behavior.
+- Calibration storage, device detection, watchdogs, stack margins, jitter, CAN utilization, and recovery behavior.
+- F4 linker hardening and reducing the current broad HAL/LL source glob.
 
-### Team gimbal board and app
+Which of these matters next is a conversation with the user, informed by available hardware, risk, and the immediate robot goal.
 
-- [ ] Add `boards/team_gimbal_f405/`.
-- [ ] Add `apps/gimbal_f405/`.
-- [ ] First gate: LED, UART, FreeRTOS, CAN, and IMU with zero actuation.
-- [ ] Port board-specific GPIO, AF, DMA, timers, IRQ priorities, and handles.
-- [ ] Preserve original 2 kHz YAW/PITCH timing initially.
-- [ ] Port `Gimbal_Zhou`, gimbal modes, turn-around, deploy, friction wheels, feeder, vision, and CH010/BMI088 integration.
-- [ ] Preserve original PID values, signs, encoder zeros, limits, and send rates.
+## Constraints on Future Decisions
 
-### Team chassis board and app
+- Do not infer unverified hardware behavior from code alone.
+- Do not claim physical axis semantics from stationary gyro noise.
+- Do not copy monolithic team firmware into the new architecture without extracting behavior and evidence.
+- Preserve team-specific signs, zeros, limits, rates, transitions, and packet bytes until equivalence is demonstrated.
+- Keep host tests separate from the ARM cross-toolchain build.
+- Keep chip facts independent from board facts.
+- Do not enable motion as a side effect of sensor, protocol, or architecture work.
+- Do not weaken tests or delete evidence to make a build pass.
+- Keep unrelated user changes intact in a dirty worktree.
 
-- [ ] Add `boards/team_chassis_f405/`.
-- [ ] Add `apps/chassis_f405/`.
-- [ ] First gate: LED, UART, FreeRTOS, CAN, and IMU with zero actuation.
-- [ ] Port board-specific GPIO, AF, DMA, timers, IRQ priorities, and handles.
-- [ ] Preserve initial 500 Hz DM leg-control timing.
-- [ ] Port `LegCascade`, balance/remote modes, anti-flip, retract, stair-climb, JY61P, referee HUD, and CAN2 load controls.
+## How to Use This Context
 
-## Scheduling Decision
-
-Use a hybrid design initially:
-
-- 2 kHz gimbal control remains hardware-timer triggered.
-- 500 Hz DM leg control remains hardware-timer triggered.
-- CAN ISR only receives, timestamps, and publishes into bounded buffers.
-- Vision, referee, HUD, logs, and lower-rate state machines run as FreeRTOS tasks.
-- Low-rate housekeeping uses `vTaskDelayUntil()`.
-- Do not move high-rate loops into normal RTOS tasks until jitter is measured and behavior equivalence is demonstrated.
-
-Any ISR calling a FreeRTOS `FromISR` API must have an NVIC priority numerically equal to or lower urgency than `configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`.
-
-## Physical Safety Gates
-
-- [ ] Add compile-time `RM_ACTUATION_ENABLED`, default `0`.
-- [ ] Add runtime `actuation_armed`, default `false`.
-- [ ] When either gate is closed, all motor CAN currents/torques must be forced to zero at the transport boundary.
-- [ ] RC loss forces zero output.
-- [ ] Inter-board timeout forces zero output or safe mode.
-- [ ] Control-task health failure prevents watchdog feed and forces safe output.
-- [ ] Verify dry-run computed currents may be nonzero while transmitted currents remain zero.
-- [ ] Do not enable motion until explicit human approval, motors are mechanically safed, and power is current-limited.
-
-First powered sequence:
-
-1. Single motor, unloaded.
-2. Small command.
-3. Verify direction and feedback.
-4. Disconnect RC and verify immediate zero.
-5. Four-wheel chassis.
-6. Single gimbal axis.
-7. Dual-axis gimbal.
-8. Single leg.
-9. Dual-leg balance.
-10. Shooting mechanisms last.
-
-## Verification Metrics
-
-Do not accept "looks correct". Capture:
-
-- Control-period jitter, especially 2 kHz and 500 Hz loops.
-- CAN utilization, error frames, queue overruns, and stale feedback.
-- IMU sample age and update rate.
-- FreeRTOS stack high-water marks.
-- Gimbal steady-state error, overshoot, and oscillation.
-- Leg mode-transition timing and failsafe behavior.
-- Referee HUD loss/recovery behavior.
-- Binary hash tied to each HIL log.
-
-## Known Non-Blocking Hardening
-
-- [ ] Reserve explicit MSP space and add heap/stack collision assertions in F4 linker scripts before enabling libc allocation.
-- [ ] Rename CCMRAM as explicit no-init or add copy/zero startup semantics before placing data there.
-- [ ] Replace the full F4 HAL/LL source glob with an explicit enabled-module source list to reduce clean-build time.
-- [ ] Address the pre-existing FreeRTOS `pxVectorTable` unused warning.
-- [ ] Update stale README references to missing `tools/setup_macos.sh` and `tools/jlink/flash_app.sh` when doing repo documentation cleanup.
-
-## Continuation Command
-
-In a new session, use:
-
-```text
-Read TODO_THREE_IN_ONE_HANDOFF.md. The host test harness and the BMI088 gyro path are done and hardware-verified; the accelerometer path, physical axis/sign mapping, and INS/AHRS are not. First verify the uncommitted worktree with `git status --short`, then either wire a UART capture path to confirm the G,seq,t_ms,x,y,z stream over the wire, or continue with BMI088 accelerometer bring-up and axis/sign verification. Keep the C board zero-actuation and port CRC/FIFO/PID test-first alongside.
-```
+A future agent should read this file to understand the project, then discuss the user's current intention, priorities, available hardware, and acceptable risk. The document deliberately does not select the next feature or prescribe a continuation sequence.

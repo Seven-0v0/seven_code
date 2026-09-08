@@ -2,6 +2,12 @@
 
 > **读者：AI 代理（Atlas 等 LLM agent）**
 > 本文档描述了 AI 如何与 STM32F103C8T6 嵌入式开发环境进行全自动闭环交互。
+>
+> **适用范围：本文档仅适用于 `apps/blinky_f103`（STM32F103C8T6，BluePill 板）的串口闭环工作流。**
+> `apps/rm_c_blinky`（RoboMaster C 板，STM32F407IG）**不使用**本文档描述的 USART1/串口捕获流程；
+> 该项目历史上尝试过 USART1 诊断路径，但从未通过外接串口线验证，现已废弃。
+> C 板的实时观测走 Ozone/J-Link，见仓库根 `README.md` 的"C 板（rm_dev_board_c）硬件状态"一节
+> 和 `apps/rm_c_blinky/ozone/rm_c_blinky.jdebug`。
 
 ---
 
