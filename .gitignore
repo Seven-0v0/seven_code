@@ -31,3 +31,9 @@ Thumbs.db
 
 # video_probe 相机采集临时 MP4（录制后即用即删，绝不入库）
 .tmp-video-capture/
+
+# SEGGER Ozone 的每用户状态：窗口布局、断点、最近文件。
+# 共享工程 apps/*/ozone/*.jdebug 本身要入库，这里只忽略用户态副产物。
+*.jdebug.user
+Ozone.ini
+.ozone/

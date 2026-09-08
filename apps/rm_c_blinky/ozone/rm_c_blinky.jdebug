@@ -1,0 +1,440 @@
+/*********************************************************************
+*                 (c) SEGGER Microcontroller GmbH                    *
+*                      The Embedded Experts                          *
+*                         www.segger.com                             *
+**********************************************************************
+
+File          : rm_c_blinky.jdebug
+Created       : 05. Sep 2026 18:08
+Ozone Version : V3.50a
+
+Notes
+  This project file is committed to the repository at
+  apps/rm_c_blinky/ozone/rm_c_blinky.jdebug. It contains only shared,
+  machine-independent project settings and must not be edited to add
+  a developer's local home-directory path. Per-user Ozone state (view
+  layout, window positions, last-used breakpoints) belongs in the
+  Ozone-generated ".jdebug.user" sidecar file, which is intentionally
+  not part of this repository file and should not be committed.
+
+  All paths below are resolved relative to $(ProjectDir), i.e. this
+  file's own directory (apps/rm_c_blinky/ozone/). That keeps the
+  project portable across clones and machines: anyone who runs
+  `bash tools/launch_ozone.sh` (or `--build-only` to just produce the
+  ELF without starting Ozone) gets the canonical
+  build-rm_dev_board_c-debug/apps/rm_c_blinky/rm_c_blinky.elf that this
+  file opens, with no manual path edits.
+
+  Do not use `tools/build_and_flash.sh` or a bare `cmake --build` to
+  produce this ELF: the CMake target has no file extension by default,
+  and only tools/launch_ozone.sh performs the copy step that creates
+  the `.elf`-suffixed file this project expects.
+*/
+
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  //
+  // Dialog-generated settings
+  //
+  Project.SetDevice ("STM32F407IG");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M4F.svd");
+  //
+  // User settings
+  //
+  Edit.SysVar (VAR_HSS_SPEED, FREQ_100_HZ);
+  File.Open ("$(ProjectDir)/../../../build-rm_dev_board_c-debug/apps/rm_c_blinky/rm_c_blinky.elf");
+  Project.SetOSPlugin ("FreeRTOSPlugin_Cortex-M");
+  //
+  // Watched data: the debugger-visible gyro snapshot (see
+  // apps/rm_c_blinky/src/gyro_snapshot.h / gyro_task.c). These are raw
+  // struct-field expressions, not a generation-safe read: g_gyro_snapshot
+  // uses a single-writer/multi-reader generation protocol so a torn
+  // read across fields is possible if the task publishes mid-observation.
+  // Before trusting a set of values together, check that
+  // g_gyro_snapshot.generation is even and unchanged before/after reading
+  // the payload fields, exactly as gyro_snapshot_read() does in firmware.
+  //
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.generation");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.sequence");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.init_status");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.read_error_count");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.last_read_status");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.x_mdps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.y_mdps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.z_mdps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_init_status");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.last_accel_read_status");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_read_error_count");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.last_temperature_status");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.temperature_mdeg_c");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_x_ug");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_y_ug");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_z_ug");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_x_g");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_y_g");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.accel_z_g");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.calibrated_gyro_bias_x_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.calibrated_gyro_bias_y_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.calibrated_gyro_bias_z_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_velocity_x_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_velocity_y_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_velocity_z_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_acceleration_x_dps2");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_acceleration_y_dps2");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.angular_acceleration_z_dps2");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.quaternion_w");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.quaternion_x");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.quaternion_y");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.quaternion_z");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.roll_deg");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.pitch_deg");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.yaw_deg");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.calibration_accepted_samples");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.calibration_complete");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.stationary_samples");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.stationary_duration_s");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_mean_x_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_mean_y_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_mean_z_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_rms_x_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_rms_y_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.drift_rms_z_dps");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.yaw_drift_deg");
+  Window.Add ("Watched Data 1", "g_gyro_snapshot.payload.yaw_drift_deg_per_min");
+}
+
+/*********************************************************************
+*
+*       OnStartupComplete
+*
+* Function description
+*   Called when program execution has reached/passed
+*   the startup completion point. Optional.
+*
+**********************************************************************
+*/
+//void OnStartupComplete (void) {
+//}
+
+/*********************************************************************
+*
+*      TargetReset
+*
+* Function description
+*   Replaces the default target device reset routine. Optional.
+*
+* Notes
+*   This example demonstrates the usage when
+*   debugging an application in RAM on a Cortex-M target device.
+*
+**********************************************************************
+*/
+//void TargetReset (void) {
+//
+//  unsigned int SP;
+//  unsigned int PC;
+//  unsigned int VectorTableAddr;
+//
+//  VectorTableAddr = Elf.GetBaseAddr();
+//  //
+//  // Set up initial stack pointer
+//  //
+//  if (VectorTableAddr != 0xFFFFFFFF) {
+//    SP = Target.ReadU32(VectorTableAddr);
+//    Target.SetReg("SP", SP);
+//  }
+//  //
+//  // Set up entry point PC
+//  //
+//  PC = Elf.GetEntryPointPC();
+//
+//  if (PC != 0xFFFFFFFF) {
+//    Target.SetReg("PC", PC);
+//  } else if (VectorTableAddr != 0xFFFFFFFF) {
+//    PC = Target.ReadU32(VectorTableAddr + 4);
+//    Target.SetReg("PC", PC);
+//  } else {
+//    Util.Error("Project file error: failed to set entry point PC", 1);
+//  }
+//}
+
+/*********************************************************************
+*
+*       BeforeTargetReset
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetReset (void) {
+//}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   Event handler routine. Optional.
+*   The default implementation initializes SP and PC to reset values.
+**
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  _SetupTarget();
+}
+
+/*********************************************************************
+*
+*       DebugStart
+*
+* Function description
+*   Replaces the default debug session startup routine. Optional.
+*
+**********************************************************************
+*/
+//void DebugStart (void) {
+//}
+
+/*********************************************************************
+*
+*       TargetConnect
+*
+* Function description
+*   Replaces the default target IF connection routine. Optional.
+*
+**********************************************************************
+*/
+//void TargetConnect (void) {
+//}
+
+/*********************************************************************
+*
+*       BeforeTargetConnect
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetConnect (void) {
+//}
+
+/*********************************************************************
+*
+*       AfterTargetConnect
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void AfterTargetConnect (void) {
+//}
+
+/*********************************************************************
+*
+*       TargetDownload
+*
+* Function description
+*   Replaces the default program download routine. Optional.
+*
+**********************************************************************
+*/
+//void TargetDownload (void) {
+//}
+
+/*********************************************************************
+*
+*       BeforeTargetDownload
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetDownload (void) {
+//}
+
+/*********************************************************************
+*
+*      AfterTargetDownload
+*
+* Function description
+*   Event handler routine. Optional.
+*   The default implementation initializes SP and PC to reset values.
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+  _SetupTarget();
+}
+
+/*********************************************************************
+*
+*       BeforeTargetDisconnect
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetDisconnect (void) {
+//}
+
+/*********************************************************************
+*
+*       AfterTargetDisconnect
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void AfterTargetDisconnect (void) {
+//}
+
+/*********************************************************************
+*
+*       AfterTargetHalt
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void AfterTargetHalt (void) {
+//}
+
+/*********************************************************************
+*
+*       BeforeTargetResume
+*
+* Function description
+*   Event handler routine. Optional.
+*
+**********************************************************************
+*/
+//void BeforeTargetResume (void) {
+//}
+
+/*********************************************************************
+*
+*       OnSnapshotLoad
+*
+* Function description
+*   Called upon loading a snapshot. Optional.
+*
+* Additional information
+*   This function is used to restore the target state in cases
+*   where values cannot simply be written to the target.
+*   Typical use: GPIO clock needs to be enabled, before
+*   GPIO is configured.
+*
+**********************************************************************
+*/
+//void OnSnapshotLoad (void) {
+//}
+
+/*********************************************************************
+*
+*       OnSnapshotSave
+*
+* Function description
+*   Called upon saving a snapshot. Optional.
+*
+* Additional information
+*   This function is usually used to save values of the target
+*   state which can either not be trivially read,
+*   or need to be restored in a specific way or order.
+*   Typically use: Memory Mapped Registers,
+*   such as PLL and GPIO configuration.
+*
+**********************************************************************
+*/
+//void OnSnapshotSave (void) {
+//}
+
+/*********************************************************************
+*
+*       OnError
+*
+* Function description
+*   Called when an error ocurred. Optional.
+*
+**********************************************************************
+*/
+//void OnError (void) {
+//}
+
+/*********************************************************************
+*
+*       AfterProjectLoad
+*
+* Function description
+*   After Project load routine. Optional.
+*
+**********************************************************************
+*/
+//void AfterProjectLoad (void) {
+//}
+
+/*********************************************************************
+*
+*       OnDebugStartBreakSymbolReached
+*
+* Function description
+*   Called when program execution has reached/passed
+*   the symbol to be breaked at during debug start. Optional.
+*
+**********************************************************************
+*/
+//void OnDebugStartBreakSymReached (void) {
+//}
+
+/*********************************************************************
+*
+*       _SetupTarget
+*
+* Function description
+*   Setup the target.
+*   Called by AfterTargetReset() and AfterTargetDownload().
+*
+*   Auto-generated function. May be overridden by Ozone.
+*
+**********************************************************************
+*/
+void _SetupTarget(void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+  //
+  // Set up initial stack pointer
+  //
+  SP = Target.ReadU32(VectorTableAddr);
+  if (SP != 0xFFFFFFFF) {
+    Target.SetReg("SP", SP);
+  }
+  //
+  // Set up entry point PC
+  //
+  PC = Elf.GetEntryPointPC();
+  if (PC != 0xFFFFFFFF) {
+    Target.SetReg("PC", PC);
+  } else {
+    Util.Error("Project script error: failed to set up entry point PC", 1);
+  }
+}
