@@ -5,7 +5,13 @@
 
 static gyro_snapshot_payload payload(uint32_t sequence) {
     gyro_snapshot_payload value = {
-        sequence, 0, 3u, 10, -20, 30,
+        .sequence = sequence,
+        .init_status = 0,
+        .read_error_count = 3u,
+        .last_read_status = BMI088_GYRO_ERR_BUS,
+        .x_mdps = 10,
+        .y_mdps = -20,
+        .z_mdps = 30,
     };
     return value;
 }
@@ -26,8 +32,40 @@ int main(void) {
                "stable even snapshot must be readable");
     TEST_CHECK_EQ_INT(actual.sequence, expected.sequence,
                       "reader must receive the published sequence");
+    TEST_CHECK_EQ_INT(actual.init_status, expected.init_status,
+                      "reader must receive the published init status");
+    TEST_CHECK_EQ_INT(actual.read_error_count, expected.read_error_count,
+                      "reader must receive the published error count");
     TEST_CHECK_EQ_INT(actual.y_mdps, expected.y_mdps,
                       "reader must receive the published axes");
+    TEST_CHECK_EQ_INT(actual.last_read_status, expected.last_read_status,
+                      "reader must receive the published read status");
+
+    /* Given: a read failure followed by a successful sample publication. */
+    expected.last_read_status = BMI088_GYRO_OK;
+    expected.sequence = 8u;
+    expected.x_mdps = 40;
+    expected.y_mdps = -50;
+    expected.z_mdps = 60;
+
+    /* When: the writer publishes the recovery payload. */
+    gyro_snapshot_publish(&snapshot, &expected);
+
+    /* Then: one coherent read sees the recovered axes and OK status together. */
+    TEST_CHECK(gyro_snapshot_read(&snapshot, &actual),
+               "recovery snapshot must be readable");
+    TEST_CHECK_EQ_INT(actual.sequence, 8,
+                      "recovery must publish its sequence");
+    TEST_CHECK_EQ_INT(actual.last_read_status, BMI088_GYRO_OK,
+                      "recovery must clear the last read failure");
+    TEST_CHECK_EQ_INT(actual.read_error_count, 3,
+                      "recovery must preserve accumulated read errors");
+    TEST_CHECK_EQ_INT(actual.x_mdps, 40,
+                      "recovery must publish its x axis coherently");
+    TEST_CHECK_EQ_INT(actual.y_mdps, -50,
+                      "recovery must publish its y axis coherently");
+    TEST_CHECK_EQ_INT(actual.z_mdps, 60,
+                      "recovery must publish its z axis coherently");
 
     /* Given: an odd generation representing a writer in progress. */
     snapshot.generation = 3u;

@@ -1,13 +1,11 @@
-/* 50 Hz BMI088 gyroscope telemetry task for RoboMaster Development Board C.
+/* 50 Hz BMI088 IMU observation task for RoboMaster Development Board C.
  *
- * Owns the gyroscope end to end after the scheduler starts: it binds the
- * portable driver to this board's SPI adapter, brings the part up, and emits
- * one fixed-point ASCII line per sample on the diagnostic UART. It also keeps
- * a plain global snapshot so a J-Link debugger can read live values without
- * any UART capture.
+ * Owns both BMI088 devices after the scheduler starts: it binds the portable
+ * drivers to this board's SPI adapter, brings them up, and keeps a plain
+ * global snapshot for Ozone/J-Link to read live values.
  *
- * Deliberately absent: accelerometer access, interrupts, DMA, calibration,
- * fusion, and floating point. The task reads, formats, and publishes.
+ * The task polls both BMI088 devices without interrupts or DMA, calibrates
+ * gyro bias in RAM, and publishes fixed-rate derived IMU values.
  */
 #ifndef APPS_RM_C_BLINKY_GYRO_TASK_H
 #define APPS_RM_C_BLINKY_GYRO_TASK_H
@@ -20,10 +18,9 @@
 
 extern volatile gyro_snapshot g_gyro_snapshot;
 
-/* Creates the gyroscope task. Call after board_imu_spi_init() and after the
- * diagnostic UART is up, but before vTaskStartScheduler(): device bring-up
- * needs an 80 ms settle that must yield rather than spin, so it runs inside
- * the task. Returns pdPASS on success, matching xTaskCreate. */
+/* Creates the IMU task. Call after board_imu_spi_init() but before
+ * vTaskStartScheduler(): sensor bring-up runs in the task so reset settling
+ * yields to the LED task. Returns pdPASS on success, matching xTaskCreate. */
 BaseType_t gyro_task_create(void);
 
 #endif /* APPS_RM_C_BLINKY_GYRO_TASK_H */
