@@ -7,6 +7,7 @@
 #ifndef FIRMWARE_TEST_SUPPORT_H
 #define FIRMWARE_TEST_SUPPORT_H
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -31,6 +32,23 @@ static int g_test_support_failed = 0;
                     __FILE__, __LINE__, msg, test_actual_, test_expected_); \
             g_test_support_failed = 1;                                      \
         }                                                                   \
+    } while (0)
+
+/* Float comparison with an absolute tolerance; NaN never passes because
+ * fabsf(NaN - x) <= tol is false. */
+#define TEST_CHECK_NEAR_FLOAT(actual, expected, tolerance, msg)              \
+    do {                                                                     \
+        float test_actual_f_ = (float)(actual);                              \
+        float test_expected_f_ = (float)(expected);                          \
+        float test_tolerance_f_ = (float)(tolerance);                        \
+        if (!(fabsf(test_actual_f_ - test_expected_f_) <=                    \
+              test_tolerance_f_)) {                                          \
+            fprintf(stderr,                                                  \
+                    "[FAIL] %s:%d: %s (actual=%g expected=%g tol=%g)\n",     \
+                    __FILE__, __LINE__, msg, (double)test_actual_f_,         \
+                    (double)test_expected_f_, (double)test_tolerance_f_);    \
+            g_test_support_failed = 1;                                       \
+        }                                                                    \
     } while (0)
 
 /* Call once at the end of main(). Returns EXIT_SUCCESS or EXIT_FAILURE. */
