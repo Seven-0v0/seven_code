@@ -27,6 +27,7 @@ add_test(NAME harness_meta COMMAND test_harness_meta)
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 add_subdirectory(${REPO_ROOT}/drivers/imu/bmi088 ${CMAKE_CURRENT_BINARY_DIR}/drivers_imu_bmi088)
 add_subdirectory(${REPO_ROOT}/drivers/util/fmt ${CMAKE_CURRENT_BINARY_DIR}/drivers_util_fmt)
+add_subdirectory(${REPO_ROOT}/middleware/imu ${CMAKE_CURRENT_BINARY_DIR}/middleware_imu)
 
 # Registers one host test executable per source file, linked against the
 # driver under test and the shared harness headers.
@@ -41,6 +42,19 @@ add_firmware_test(test_bmi088_gyro_init test_bmi088_gyro_init.c driver_bmi088_gy
 add_firmware_test(test_bmi088_gyro_init_errors test_bmi088_gyro_init_errors.c driver_bmi088_gyro)
 add_firmware_test(test_bmi088_gyro_read test_bmi088_gyro_read.c driver_bmi088_gyro)
 add_firmware_test(test_bmi088_gyro_scale test_bmi088_gyro_scale.c driver_bmi088_gyro)
+add_firmware_test(test_bmi088_accel test_bmi088_accel.c driver_bmi088_accel)
+add_firmware_test(test_imu_stationarity test_imu_stationarity.c middleware_imu)
+add_firmware_test(test_imu_calibration test_imu_calibration.c middleware_imu)
+add_firmware_test(test_imu_angular_acceleration test_imu_angular_acceleration.c middleware_imu)
+add_firmware_test(test_imu_attitude test_imu_attitude.c middleware_imu)
+add_firmware_test(test_imu_drift test_imu_drift.c middleware_imu)
+add_firmware_test(test_rm_c_imu_pipeline test_rm_c_imu_pipeline.c middleware_imu)
+target_sources(test_rm_c_imu_pipeline PRIVATE
+    ${REPO_ROOT}/apps/rm_c_blinky/src/imu_pipeline.c
+)
+target_include_directories(test_rm_c_imu_pipeline PRIVATE
+    ${REPO_ROOT}/apps/rm_c_blinky/src
+)
 add_firmware_test(test_fmt_i32 test_fmt_i32.c util_fmt_i32)
 add_firmware_test(test_fmt_u32 test_fmt_u32.c util_fmt_i32)
 add_executable(test_gyro_snapshot
@@ -51,4 +65,5 @@ target_include_directories(test_gyro_snapshot PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${REPO_ROOT}/apps/rm_c_blinky/src
 )
+target_link_libraries(test_gyro_snapshot PRIVATE driver_bmi088_gyro)
 add_test(NAME test_gyro_snapshot COMMAND test_gyro_snapshot)

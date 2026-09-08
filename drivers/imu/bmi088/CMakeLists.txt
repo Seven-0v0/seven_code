@@ -1,4 +1,4 @@
-# Portable BMI088 gyroscope driver.
+# Portable BMI088 motion-sensor drivers.
 #
 # Build integration only: the driver is an INTERFACE target so consumers
 # compile the source into their own binary with their own flags. That keeps
@@ -13,5 +13,15 @@ target_sources(driver_bmi088_gyro INTERFACE
 )
 
 target_include_directories(driver_bmi088_gyro INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_library(driver_bmi088_accel INTERFACE)
+
+target_sources(driver_bmi088_accel INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/bmi088_accel.c
+)
+
+target_include_directories(driver_bmi088_accel INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
