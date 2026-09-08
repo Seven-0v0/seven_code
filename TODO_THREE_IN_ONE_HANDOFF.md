@@ -122,8 +122,8 @@ The repository baseline through commit `2ce8212` includes:
 - PH10 LED heartbeat. The PA9 USART1 TX diagnostic path was implemented but is now removed/superseded: it was never verified over a physical serial connection (see below), and live observation of the C-board now goes exclusively through Ozone/J-Link against `g_gyro_snapshot`. A portable, repo-committed Ozone project lives at `apps/rm_c_blinky/ozone/rm_c_blinky.jdebug`.
 - J-Link build, flash, and `verifybin` workflow.
 - A standalone host CMake/CTest firmware test harness.
-- A portable gyro-only BMI088 driver with an injected bus interface.
-- C-board SPI1 integration for the BMI088 gyro.
+- Portable BMI088 gyro and accelerometer drivers with injected bus interfaces.
+- C-board SPI1 integration for both BMI088 dies.
 - Fixed-point integer formatting without float `printf`.
 - A generation-protected J-Link-readable gyro snapshot.
 
@@ -139,8 +139,8 @@ The gyro half of the BMI088 path is implemented and tested.
 - SPI1 MISO: PB4.
 - SPI1 MOSI: PA7.
 - Gyro chip select: PB0, active low.
-- Accelerometer chip select: PA4, held high.
-- SPI mode 3, software NSS, conservative prescaler.
+- Accelerometer chip select: PA4, active low.
+- SPI mode 3, software NSS, prescaler 32 for the 1 kHz gyro path.
 - Gyro chip ID: `0x0F`.
 - Gyro range: ±2000 dps.
 - Gyro bandwidth/ODR register: `0x82`, representing 1000 Hz ODR / 116 Hz bandwidth.
@@ -152,11 +152,11 @@ The gyro half of the BMI088 path is implemented and tested.
 - Samples are read in one burst with the chip ID carried as a framing canary.
 - Raw signed counts are converted to integer milli-degrees per second.
 - The C-board app publishes a coherent `g_gyro_snapshot`. It previously also produced a USART1 telemetry path; that path is removed/superseded and no longer the documented way to observe this data (see Ozone/J-Link note below).
-- The accelerometer half of the BMI088 is not accessed.
+- The accelerometer is configured at 100 Hz and cached as the low-rate stationarity evidence for the 1 kHz gyro path.
 
 ### Verification evidence
 
-- Host firmware tests: 8/8 passing.
+- Host firmware tests: 18/18 passing.
 - F103 regression build: passing.
 - C-board cross build: passing.
 - Flash program and verification: passing.
@@ -170,6 +170,34 @@ The gyro half of the BMI088 path is implemented and tested.
 
 The exact physical mapping between board rotation and reported gyro axis/sign has not been established. The USART1 path was implemented, but the available J-Link CDC was never wired to PA9, so no session ever captured the UART stream over a physical serial connection. That path is now removed/superseded: live observation of `g_gyro_snapshot` (sequence, init_status, read_error_count, last_read_status, x/y/z) goes exclusively through Ozone/J-Link via the committed project file `apps/rm_c_blinky/ozone/rm_c_blinky.jdebug`, which watches those fields directly and requires no serial hardware.
 
+## Current BMI088 Observation Result
+
+The C-board observation image now uses the competition-relevant gyro settings:
+
+- Gyro range: +/-2000 dps.
+- Gyro ODR and bandwidth: 1000 Hz / 116 Hz.
+- Gyro task cadence: 1 kHz with measured tick-derived `dt`.
+- Accelerometer cadence: 100 Hz, cached as low-rate stationarity evidence.
+- SPI1 prescaler: 32.
+- Startup calibration: 2 seconds / 2000 contiguous quiet raw samples, accumulated in `int64_t` before one double-precision conversion.
+- Hold-out: bias freezes automatically before a 600-second wall-clock measurement; motion and missing intervals invalidate evidence but do not remove observed gyro samples from the yaw integral.
+- The default build leaves the BMI088 heater disabled. The optional heater path now disables TIM10 and drives PF6 low on every hardware-off or fault path.
+
+Two room-temperature 1 kHz frozen hold-outs were measured:
+
+- Run 1: calibrated yaw `-0.882541 deg`, residual Z mean `-0.00147828 dps`, Z RMS `0.237616 dps`.
+- Run 2: calibrated yaw `3.444227 deg`, residual Z mean `0.00576192 dps`, Z RMS `0.236892 dps`.
+
+The opposite signs and large spread show that a two-second startup bias estimate does not reproducibly achieve `0.1 deg / 10 min`. Neither run is a passing performance claim. The current result is useful as an honest high-rate baseline, not as proof of absolute or long-term yaw accuracy.
+
+The next useful BMI088 work is:
+
+- Capture several hours of raw 1 kHz gyro, 100 Hz acceleration, die temperature, and supply-voltage evidence for overlapping Allan deviation and correlation analysis.
+- Derive the per-unit optimum stationary averaging interval and stochastic bias model from those captures instead of choosing an arbitrary EMA constant.
+- Design a competition-safe background bias update that activates only under a separately proven robot-stationary condition and never updates during an evaluation hold-out.
+- Verify physical board axes/signs and measure data-ready jitter before reusing this observation path in the 2 kHz gimbal controller.
+- Treat six-axis yaw as relative and unbounded during arbitrary motion unless vision, a magnetic reference, GNSS heading, or a valid kinematic constraint supplies heading observability.
+
 ## Test and Evidence Philosophy
 
 Pure logic should be testable with the host compiler. The current harness covers:
@@ -180,6 +208,7 @@ Pure logic should be testable with the host compiler. The current harness covers
 - Scale boundaries and sign behavior.
 - Signed and unsigned integer formatting boundaries.
 - Coherent snapshot publication and generation wrap.
+- Accelerometer and temperature decode, IMU calibration/attitude/drift, stationary experiment, heater control, and pipeline integration.
 
 Tests should use real value objects or in-memory fakes rather than broad mocks. Protocol work should eventually include byte-exact fixtures from official or deployed implementations.
 
@@ -245,6 +274,7 @@ The following are unresolved project areas, not an ordered task list:
 - STM32F405RG chip and board targets for the team gimbal and chassis.
 - Preservation and modularization of deployed gimbal modes, chassis modes, leg control, shooting, vision, and HUD behavior.
 - Calibration storage, device detection, watchdogs, stack margins, jitter, CAN utilization, and recovery behavior.
+- BMI088 drift optimization still needs long raw captures, Allan analysis, and a competition-safe stationary background-bias policy. Software now exposes actual `dt`, raw/calibrated drift, temperature evidence, sample stationarity, frozen hold-out state, unobserved duration, and task stack margin; no open-loop six-axis yaw target is guaranteed.
 - F4 linker hardening and reducing the current broad HAL/LL source glob.
 
 Which of these matters next is a conversation with the user, informed by available hardware, risk, and the immediate robot goal.
