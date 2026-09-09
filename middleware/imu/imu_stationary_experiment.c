@@ -1,5 +1,7 @@
 #include "imu_stationary_experiment.h"
 
+#include <math.h>
+
 static imu_gyro_dps raw_to_dps(
     const imu_stationary_experiment_config *config,
     imu_gyro_raw_counts raw) {
@@ -16,6 +18,19 @@ static bool duration_complete(double elapsed_s, float required_s,
                               uint32_t sample_rate_hz) {
     const double half_sample_s = 0.5 / (double)sample_rate_hz;
     return elapsed_s + half_sample_s >= (double)required_s;
+}
+
+static const double hold_out_nonstationary_tolerance_s = 0.25;
+
+static bool acceleration_is_plausible(
+    const imu_stationary_experiment *experiment,
+    imu_acceleration_g acceleration_g) {
+    const float squared = acceleration_g.x_g * acceleration_g.x_g +
+                          acceleration_g.y_g * acceleration_g.y_g +
+                          acceleration_g.z_g * acceleration_g.z_g;
+    const float magnitude = sqrtf(squared);
+    return magnitude >= experiment->config.stationarity.min_acceleration_magnitude_g &&
+           magnitude <= experiment->config.stationarity.max_acceleration_magnitude_g;
 }
 
 static void reset_calibration(imu_stationary_experiment *experiment) {
@@ -123,8 +138,18 @@ bool imu_stationary_experiment_update(
         if (stationary) {
             experiment->hold_out_accepted_duration_s += observed_s;
             experiment->hold_out_accepted_samples++;
+            experiment->hold_out_nonstationary_duration_s = 0.0;
         } else {
-            experiment->hold_out_valid = false;
+            if (!input->acceleration_valid ||
+                !acceleration_is_plausible(experiment, input->acceleration_g)) {
+                experiment->hold_out_valid = false;
+            }
+            experiment->hold_out_nonstationary_duration_s +=
+                (double)input->dt_s;
+            if (experiment->hold_out_nonstationary_duration_s >=
+                hold_out_nonstationary_tolerance_s) {
+                experiment->hold_out_valid = false;
+            }
         }
         if (duration_complete(experiment->hold_out_wall_duration_s,
                               experiment->config.hold_out_duration_s,

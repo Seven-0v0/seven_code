@@ -58,6 +58,7 @@ typedef struct {
     double hold_out_wall_duration_s;
     double hold_out_accepted_duration_s;
     double hold_out_unobserved_duration_s;
+    double hold_out_nonstationary_duration_s;
     imu_gyro_dps frozen_bias_dps;
     bool bias_frozen;
     bool hold_out_valid;
