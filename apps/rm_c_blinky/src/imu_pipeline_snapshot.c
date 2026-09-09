@@ -8,9 +8,18 @@ void imu_pipeline_snapshot_apply(gyro_snapshot_payload *snapshot,
     snapshot->calibrated_gyro_bias_x_dps = output->gyro_bias_dps.x_dps;
     snapshot->calibrated_gyro_bias_y_dps = output->gyro_bias_dps.y_dps;
     snapshot->calibrated_gyro_bias_z_dps = output->gyro_bias_dps.z_dps;
+    snapshot->zaru_gyro_bias_x_dps = output->zaru_bias_dps.x_dps;
+    snapshot->zaru_gyro_bias_y_dps = output->zaru_bias_dps.y_dps;
+    snapshot->zaru_gyro_bias_z_dps = output->zaru_bias_dps.z_dps;
     snapshot->angular_velocity_x_dps = output->angular_velocity_dps.x_dps;
     snapshot->angular_velocity_y_dps = output->angular_velocity_dps.y_dps;
     snapshot->angular_velocity_z_dps = output->angular_velocity_dps.z_dps;
+    snapshot->attitude_angular_velocity_x_dps =
+        output->attitude_angular_velocity_dps.x_dps;
+    snapshot->attitude_angular_velocity_y_dps =
+        output->attitude_angular_velocity_dps.y_dps;
+    snapshot->attitude_angular_velocity_z_dps =
+        output->attitude_angular_velocity_dps.z_dps;
     snapshot->angular_acceleration_x_dps2 =
         output->angular_acceleration_dps2.x_dps2;
     snapshot->angular_acceleration_y_dps2 =
@@ -24,6 +33,7 @@ void imu_pipeline_snapshot_apply(gyro_snapshot_payload *snapshot,
     snapshot->roll_deg = output->attitude.euler_zyx_deg.roll_deg;
     snapshot->pitch_deg = output->attitude.euler_zyx_deg.pitch_deg;
     snapshot->yaw_deg = output->attitude.euler_zyx_deg.yaw_deg;
+    snapshot->attitude_heading_drift_deg = output->attitude_heading_drift_deg;
     snapshot->calibration_accepted_samples = output->calibration_accepted_samples;
     snapshot->calibration_complete = output->calibration_complete;
     snapshot->sample_dt_s = output->sample_dt_s;
@@ -44,6 +54,8 @@ void imu_pipeline_snapshot_apply(gyro_snapshot_payload *snapshot,
         output->hold_out_accepted_duration_s;
     snapshot->hold_out_unobserved_duration_s =
         output->hold_out_unobserved_duration_s;
+    snapshot->hold_out_nonstationary_duration_s =
+        output->hold_out_nonstationary_duration_s;
     snapshot->bias_frozen = output->bias_frozen;
     snapshot->hold_out_valid = output->hold_out_valid;
     snapshot->hold_out_gyro_bias_x_dps = output->hold_out_bias_dps.x_dps;

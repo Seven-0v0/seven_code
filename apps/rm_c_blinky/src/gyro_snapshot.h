@@ -49,6 +49,7 @@ typedef struct {
     float hold_out_wall_duration_s;
     float hold_out_accepted_duration_s;
     float hold_out_unobserved_duration_s;
+    float hold_out_nonstationary_duration_s;
     bool bias_frozen;
     bool hold_out_valid;
     int32_t accel_x_ug;
@@ -62,9 +63,15 @@ typedef struct {
     float calibrated_gyro_bias_x_dps;
     float calibrated_gyro_bias_y_dps;
     float calibrated_gyro_bias_z_dps;
+    float zaru_gyro_bias_x_dps;
+    float zaru_gyro_bias_y_dps;
+    float zaru_gyro_bias_z_dps;
     float angular_velocity_x_dps;
     float angular_velocity_y_dps;
     float angular_velocity_z_dps;
+    float attitude_angular_velocity_x_dps;
+    float attitude_angular_velocity_y_dps;
+    float attitude_angular_velocity_z_dps;
     float angular_acceleration_x_dps2;
     float angular_acceleration_y_dps2;
     float angular_acceleration_z_dps2;
@@ -75,6 +82,7 @@ typedef struct {
     float roll_deg;
     float pitch_deg;
     float yaw_deg;
+    float attitude_heading_drift_deg;
     uint32_t calibration_accepted_samples;
     bool calibration_complete;
     float hold_out_gyro_bias_x_dps;
