@@ -47,6 +47,7 @@ add_firmware_test(test_imu_stationarity test_imu_stationarity.c middleware_imu)
 add_firmware_test(test_imu_calibration test_imu_calibration.c middleware_imu)
 add_firmware_test(test_imu_angular_acceleration test_imu_angular_acceleration.c middleware_imu)
 add_firmware_test(test_imu_attitude test_imu_attitude.c middleware_imu)
+add_firmware_test(test_imu_zaru test_imu_zaru.c middleware_imu)
 add_firmware_test(test_imu_drift test_imu_drift.c middleware_imu)
 add_firmware_test(test_imu_temperature_gate test_imu_temperature_gate.c middleware_imu)
 add_firmware_test(test_imu_stationary_experiment test_imu_stationary_experiment.c middleware_imu)
@@ -61,6 +62,7 @@ target_link_libraries(test_heater_control PRIVATE m)
 add_firmware_test(test_rm_c_imu_pipeline test_rm_c_imu_pipeline.c middleware_imu)
 target_sources(test_rm_c_imu_pipeline PRIVATE
     ${REPO_ROOT}/apps/rm_c_blinky/src/imu_pipeline.c
+    ${REPO_ROOT}/apps/rm_c_blinky/src/imu_pipeline_heading.c
 )
 target_include_directories(test_rm_c_imu_pipeline PRIVATE
     ${REPO_ROOT}/apps/rm_c_blinky/src
