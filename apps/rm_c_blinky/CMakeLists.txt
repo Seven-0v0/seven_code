@@ -5,6 +5,7 @@ add_executable(rm_c_blinky
     src/heater_control.c
     src/heater_experiment.c
     src/imu_pipeline.c
+    src/imu_pipeline_heading.c
     src/imu_pipeline_snapshot.c
 )
 

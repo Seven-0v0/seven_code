@@ -11,6 +11,13 @@ static const imu_temperature_gate_config temperature_gate_config = {
     .max_temperature_slope_degc_per_s = 0.1f,
 };
 
+static const imu_zaru_config zaru_config = {
+    .minimum_window_s = 3.0f,
+    .minimum_samples = 3000u,
+    .max_window_stddev_dps = 0.5f,
+    .bias_update_gain = 0.3143f,
+};
+
 static imu_gyro_dps subtract_bias(imu_gyro_dps gyro_dps,
                                   imu_gyro_dps bias_dps) {
     return (imu_gyro_dps){
@@ -18,6 +25,24 @@ static imu_gyro_dps subtract_bias(imu_gyro_dps gyro_dps,
         .y_dps = gyro_dps.y_dps - bias_dps.y_dps,
         .z_dps = gyro_dps.z_dps - bias_dps.z_dps,
     };
+}
+
+static imu_gyro_dps apply_static_yaw_deadband(imu_gyro_dps gyro_dps,
+                                              bool stationary,
+                                              bool enabled) {
+    const float deadband_dps = 1.0f;
+    if (enabled && stationary) {
+        if (gyro_dps.x_dps > -deadband_dps && gyro_dps.x_dps < deadband_dps) {
+            gyro_dps.x_dps = 0.0f;
+        }
+        if (gyro_dps.y_dps > -deadband_dps && gyro_dps.y_dps < deadband_dps) {
+            gyro_dps.y_dps = 0.0f;
+        }
+        if (gyro_dps.z_dps > -deadband_dps && gyro_dps.z_dps < deadband_dps) {
+            gyro_dps.z_dps = 0.0f;
+        }
+    }
+    return gyro_dps;
 }
 
 static imu_gyro_dps input_gyro_dps(const imu_pipeline *pipeline,
@@ -69,11 +94,16 @@ void imu_pipeline_init_with_experiment_config(
         .integral_gain = 0.1f,
         .min_acceleration_magnitude_g = 0.8f,
         .max_acceleration_magnitude_g = 1.2f,
+        .max_acceleration_correction_gyro_dps = 100.0f,
+        .max_acceleration_age_s = 0.002f,
     };
     *pipeline = (imu_pipeline){0};
     imu_stationary_experiment_init(&pipeline->experiment, experiment_config);
     imu_angular_acceleration_init(&pipeline->angular_acceleration, 0.25f);
     imu_attitude_init(&pipeline->attitude, &attitude_config);
+    imu_zaru_init(&pipeline->zaru, &zaru_config);
+    imu_pipeline_heading_init(&pipeline->heading);
+    pipeline->zaru_enabled = true;
     imu_gyro_drift_init(&pipeline->hold_out_raw_drift,
                         &experiment_config->stationarity);
     imu_gyro_drift_init(&pipeline->hold_out_calibrated_drift,
@@ -110,12 +140,18 @@ void imu_pipeline_set_calibration_enabled(imu_pipeline *pipeline,
     pipeline->calibration_enabled = false;
 }
 
+void imu_pipeline_set_zaru_enabled(imu_pipeline *pipeline, bool enabled) {
+    pipeline->zaru_enabled = enabled;
+}
+
 static imu_pipeline_output pipeline_output(const imu_pipeline *pipeline,
                                            imu_pipeline_output output) {
     const imu_stationary_experiment *experiment = &pipeline->experiment;
     output.gyro_bias_dps = experiment->bias_frozen
                                ? experiment->frozen_bias_dps
                                : (imu_gyro_dps){0};
+    output.zaru_bias_dps = pipeline->zaru.bias_dps;
+    output.attitude_heading_drift_deg = pipeline->heading.drift_deg;
     output.hold_out_bias_dps = experiment->frozen_bias_dps;
     output.drift = imu_gyro_drift_statistics(&pipeline->hold_out_raw_drift);
     output.calibrated_drift =
@@ -132,6 +168,8 @@ static imu_pipeline_output pipeline_output(const imu_pipeline *pipeline,
         (float)experiment->hold_out_accepted_duration_s;
     output.hold_out_unobserved_duration_s =
         (float)experiment->hold_out_unobserved_duration_s;
+    output.hold_out_nonstationary_duration_s =
+        (float)experiment->hold_out_nonstationary_duration_s;
     output.temperature_degc = pipeline->temperature_gate.temperature_degc;
     output.temperature_slope_degc_per_s =
         pipeline->temperature_gate.slope_degc_per_s;
@@ -172,7 +210,8 @@ imu_pipeline_output imu_pipeline_update_timed(imu_pipeline *pipeline,
             .acceleration_g = input->acceleration_g,
             .dt_s = input->dt_s,
             .skipped_cycles = input->skipped_cycles,
-            .acceleration_valid = input->acceleration_valid,
+            .acceleration_valid = input->acceleration_valid &&
+                                  input->acceleration_age_s <= 0.02f,
         };
         accepted = imu_stationary_experiment_update(&pipeline->experiment,
                                                     &experiment_input);
@@ -184,12 +223,49 @@ imu_pipeline_output imu_pipeline_update_timed(imu_pipeline *pipeline,
                                       ? pipeline->experiment.frozen_bias_dps
                                       : (imu_gyro_dps){0};
     const imu_gyro_dps calibrated_gyro_dps = subtract_bias(gyro_dps, bias_dps);
+    if (pipeline->zaru_enabled && pipeline->experiment.bias_frozen &&
+        !pipeline->zaru.bias_valid) {
+        imu_zaru_set_bias(&pipeline->zaru, bias_dps);
+    }
+    if (pipeline->zaru_enabled && pipeline->experiment.bias_frozen &&
+        phase_before == IMU_EXPERIMENT_HOLD_OUT) {
+        const imu_zaru_input zaru_input = {
+            .gyro_dps = gyro_dps,
+            .dt_s = input->dt_s,
+            .skipped_cycles = input->skipped_cycles,
+            .sample_valid = input->gyro_raw_valid,
+            .confirmed_stationary = pipeline->experiment.sample_stationary,
+        };
+        (void)imu_zaru_update(&pipeline->zaru, &zaru_input);
+    }
+    const imu_gyro_dps attitude_bias_dps = pipeline->zaru_enabled &&
+                                                   pipeline->zaru.bias_valid
+                                                ? pipeline->zaru.bias_dps
+                                                : bias_dps;
+    const imu_gyro_dps attitude_gyro_dps = apply_static_yaw_deadband(
+        subtract_bias(gyro_dps, attitude_bias_dps),
+        pipeline->experiment.sample_stationary, pipeline->zaru_enabled);
     const imu_angular_acceleration_dps2 angular_acceleration_dps2 =
         imu_angular_acceleration_update(&pipeline->angular_acceleration,
                                         calibrated_gyro_dps, input->dt_s);
-    const imu_attitude_output attitude = imu_attitude_update(
-        &pipeline->attitude, calibrated_gyro_dps, input->acceleration_g,
+    const imu_attitude_output attitude = imu_attitude_update_timed(
+        &pipeline->attitude, attitude_gyro_dps,
+        (imu_attitude_acceleration){
+            .acceleration_g = input->acceleration_g,
+            .age_s = input->acceleration_age_s,
+            .valid = input->acceleration_valid,
+            .fresh = input->acceleration_fresh,
+            .allow_integral_feedback = pipeline->experiment.sample_stationary,
+        },
         input->dt_s);
+
+    imu_pipeline_heading_update(
+        &pipeline->heading,
+        (imu_pipeline_heading_input){
+            .phase = phase_before,
+            .attitude = attitude,
+            .dt_s = input->dt_s,
+        });
 
     if (phase_before == IMU_EXPERIMENT_HOLD_OUT && accepted) {
         const float integration_dt_s = input->skipped_cycles == 0u
@@ -205,6 +281,7 @@ imu_pipeline_output imu_pipeline_update_timed(imu_pipeline *pipeline,
     return pipeline_output(
         pipeline, (imu_pipeline_output){
                       .angular_velocity_dps = calibrated_gyro_dps,
+                      .attitude_angular_velocity_dps = attitude_gyro_dps,
                       .acceleration_g = input->acceleration_g,
                       .angular_acceleration_dps2 = angular_acceleration_dps2,
                       .attitude = attitude,
