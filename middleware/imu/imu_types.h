@@ -18,6 +18,12 @@ typedef struct {
     float z_dps;
 } imu_gyro_dps;
 
+typedef struct {
+    float x_rad;
+    float y_rad;
+    float z_rad;
+} imu_rotation_vector_rad;
+
 /* Linear acceleration in standard gravity units (g), in sensor-frame x/y/z. */
 typedef struct {
     float x_g;
