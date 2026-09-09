@@ -11,7 +11,9 @@ target_sources(middleware_imu INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_calibration.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_angular_acceleration.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_attitude.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/imu_quaternion.c
     ${CMAKE_CURRENT_SOURCE_DIR}/imu_drift.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/imu_zaru.c
 )
 
 target_include_directories(middleware_imu INTERFACE

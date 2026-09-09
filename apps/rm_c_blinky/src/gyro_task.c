@@ -161,6 +161,10 @@ static void gyro_task(void *context) {
     uint32_t sequence = 0u;
     bmi088_accel_sample accel_sample = {0};
     bool acceleration_valid = false;
+    bool acceleration_fresh = false;
+    bool acceleration_sampled = false;
+    float acceleration_age_s = 0.0f;
+    float acceleration_sample_dt_s = 0.0f;
     TickType_t wake_time = xTaskGetTickCount();
     TickType_t last_cycle_tick = wake_time;
     for (;;) {
@@ -186,6 +190,10 @@ static void gyro_task(void *context) {
         }
 
         sequence++;
+        acceleration_fresh = false;
+        acceleration_sampled = false;
+        acceleration_sample_dt_s = 0.0f;
+        acceleration_age_s += cycle_dt_s;
         snapshot.sequence = sequence;
         snapshot.last_read_status = BMI088_GYRO_OK;
         snapshot.gyro_sample_valid = true;
@@ -197,8 +205,12 @@ static void gyro_task(void *context) {
             const bmi088_accel_status accel_status =
                 bmi088_accel_read(&accel_device, &accel_sample);
             snapshot.last_accel_read_status = accel_status;
+            acceleration_sampled = true;
             acceleration_valid = accel_status == BMI088_ACCEL_OK;
             if (acceleration_valid) {
+                acceleration_fresh = true;
+                acceleration_sample_dt_s = acceleration_age_s;
+                acceleration_age_s = 0.0f;
                 snapshot.accel_x_ug = accel_sample.x_ug;
                 snapshot.accel_y_ug = accel_sample.y_ug;
                 snapshot.accel_z_ug = accel_sample.z_ug;
@@ -228,6 +240,10 @@ static void gyro_task(void *context) {
             .skipped_cycles = skipped_cycles,
             .gyro_raw_valid = true,
             .acceleration_valid = acceleration_valid,
+            .acceleration_fresh = acceleration_fresh,
+            .acceleration_sampled = acceleration_sampled,
+            .acceleration_age_s = acceleration_age_s,
+            .acceleration_sample_dt_s = acceleration_sample_dt_s,
         };
         heater_control_input heater_input = {.dt_s = cycle_dt_s};
 
